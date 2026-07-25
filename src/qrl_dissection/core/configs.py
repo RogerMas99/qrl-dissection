@@ -127,7 +127,13 @@ def build_arm_config(
         else:
             raise ValueError(f"match_to must be 'total' or 'quantum', got {match_to!r}")
         indices = PAPER_LINEAR["reuse_indices"]
-        in_dim = len(indices)
+        n_repeats = PAPER_LINEAR["n_repeats"]
+        # SelectiveOutputReuse replicates the reduced observation n_repeats
+        # times before the network, so the first Linear sees len(indices) *
+        # n_repeats features, not len(indices). Sizing against the wrong in_dim
+        # made the matched arm ~2.5x too big (width 21 / 317 params instead of
+        # width 8 / 122). See docs/CORRECTIONS.md#new-02.
+        in_dim = len(indices) * n_repeats
         width, spent = match_hidden_width(budget, in_dim=in_dim, out_dim=2)
         cfg = {
             "reuse_indices": list(indices),

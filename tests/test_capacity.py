@@ -31,3 +31,19 @@ def test_total_match_is_close_to_hybrid_total():
     width, spent = match_hidden_width(target_params=126, in_dim=12, out_dim=2)
     assert abs(spent - 126) <= 10, f"expected ~126 total params, got {spent}"
     assert width == 8
+
+
+def test_matched_arm_in_dim_accounts_for_output_reuse():
+    """Regression guard: the matched arm's first Linear sees
+    len(indices) * n_repeats features (SelectiveOutputReuse expands the input),
+    so sizing must use that in_dim. Using len(indices) alone made the arm ~2.5x
+    too big. Here: indices=[1,2,3], n_repeats=4 -> in_dim=12, target 126 -> the
+    REAL built network must land near 126, not ~317."""
+    in_dim = 3 * 4  # len(indices) * n_repeats
+    width, _ = match_hidden_width(126, in_dim=in_dim, out_dim=2)
+    real_params = in_dim * width + width + width * 2 + 2  # Linear(in,w)+Linear(w,2)
+    assert abs(real_params - 126) <= 10, (
+        f"matched arm built {real_params} params, expected ~126 - "
+        "check in_dim includes n_repeats"
+    )
+    assert width == 8
