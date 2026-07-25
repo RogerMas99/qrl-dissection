@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Run artefacts never go in git. Code is versioned here; results live in
+# Drive (Colab) or ./results locally. Only the summary tables in
+# docs/RESULTS-LOG.md are committed.
+results/
+runs/
+checkpoints/
+*.npy
+*.zip
+!docs/**/*.png

@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qrl-dissection"
+version = "0.1.0"
+description = "Cross-algorithm (DQN/PPO) extension of the PQC-based QRL component dissection, with audited corrections to SimplyQRL"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+# Pins follow the upstream SimplyQRL lock of June 2025 - the environment that
+# produced the published results - NOT the requirements.txt shipped with
+# qrl-dissection, which pins autoray 0.8.0 and cannot import PennyLane.
+# See docs/CORRECTIONS.md#fix-04
+dependencies = [
+    "gymnasium==1.1.1",
+    "torch>=2.6,<3.0",
+    "pennylane==0.41.1",
+    "pennylane-lightning==0.41.1",
+    "autoray==0.7.1",
+    "numpy>=2.0",
+    "tqdm",
+    "tensorboard",
+    "cloudpickle",
+    "matplotlib",
+    "pandas",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

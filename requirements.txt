@@ -1,0 +1,27 @@
+# Environment pins.
+#
+# [FIX-04] These follow the upstream SimplyQRL poetry.lock of 2025-06-19 - the
+# environment in which the published DQN results were produced - and NOT the
+# requirements.txt distributed with qrl-dissection, which pins autoray==0.8.0.
+# With that pin `import pennylane` raises AttributeError on NumpyMimic before
+# any project code runs. See docs/CORRECTIONS.md#fix-04.
+#
+# jax is deliberately absent: it appears in neither upstream lock, but Colab
+# preinstalls it and PennyLane imports it opportunistically. Uninstall it.
+
+gymnasium==1.1.1
+torch>=2.6,<3.0
+pennylane==0.41.1
+pennylane-lightning==0.41.1
+autoray==0.7.1
+numpy>=2.0
+tqdm
+tensorboard
+cloudpickle
+matplotlib
+pandas
+
+# The library under study, pinned by revision for reproducibility.
+# Audited revision b534cc9 (upstream HEAD 2025-10-31). Bump this only after
+# re-checking the guards in src/qrldqn/compat.py against the new revision.
+simplyqrl @ git+https://github.com/javier-lazaro/SimplyQRL.git@b534cc9
