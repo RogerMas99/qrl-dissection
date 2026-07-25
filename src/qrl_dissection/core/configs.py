@@ -91,13 +91,27 @@ def build_arm_config(
     hybrid_reference: str = "hybrid_fig4",
     activation: type = nn.ReLU,
     env_id: str = "CartPole-v1",
+    match_to: str = "total",
     **overrides: Any,
 ):
     """Return (agent_type, agent_config) for an arm name.
 
     `matched_classical` is computed, not hard-coded: the hidden width is derived
-    from the reference hybrid arm's measured PQC parameter budget, so it stays
+    from the reference hybrid arm's measured parameter budget, so it stays
     correct if the circuit changes.
+
+    match_to
+    --------
+    "total"   (default) match the FULL hybrid parameter count (PQC + classical
+              head). This is the honest control: same total budget as the model
+              it is meant to rival, so any gap is attributable to the circuit
+              rather than to a parameter-count advantage. The hybrid arm keeps
+              the paper's exact circuit unchanged - only this classical control
+              is resized.
+    "quantum" match only the PQC weight count. Leaves the classical arm with
+              MORE total parameters than the hybrid (it adds its own head on
+              top), which biases the comparison toward the classical arm.
+              Kept for completeness; not the default.
     """
     from .capacity import match_hidden_width, pqc_parameter_budget
 
@@ -105,7 +119,13 @@ def build_arm_config(
         ref_type, ref_cfg = ARMS[hybrid_reference]
         if ref_type != "hybrid":
             raise ValueError("hybrid_reference must name a hybrid arm")
-        budget = pqc_parameter_budget(ref_cfg, env_id=env_id)["quantum"]
+        budgets = pqc_parameter_budget(ref_cfg, env_id=env_id)
+        if match_to == "total":
+            budget = budgets["total"]
+        elif match_to == "quantum":
+            budget = budgets["quantum"]
+        else:
+            raise ValueError(f"match_to must be 'total' or 'quantum', got {match_to!r}")
         indices = PAPER_LINEAR["reuse_indices"]
         in_dim = len(indices)
         width, spent = match_hidden_width(budget, in_dim=in_dim, out_dim=2)
@@ -115,7 +135,10 @@ def build_arm_config(
             "net_arch": [width],
             "activation": activation,
             "_matched_to": hybrid_reference,
-            "_pqc_budget": budget,
+            "_match_target": match_to,
+            "_budget": budget,
+            "_hybrid_total": budgets["total"],
+            "_hybrid_quantum": budgets["quantum"],
             "_spent_params": spent,
         }
         cfg.update(overrides)

@@ -105,9 +105,17 @@ The capacity ladder, measured rather than assumed:
 
 | arm | features -> Q | trainable params | observed |
 |---|---|---|---|
-| paper linear | 3 raw -> linear | ~26 | ~10, dies |
-| hybrid Fig. 4 | 4 -> PQC (8q x 5L) -> linear | ~170 | 57, learns weakly |
-| oversized MLP | 4 -> 120 -> 84 -> linear | ~11,000 | 226, healthy |
+| paper linear | 12 (3x4 reuse) -> linear | 26 | ~10, dies |
+| matched_classical | 12 -> 8 -> linear | 122 | to measure |
+| hybrid Fig. 4 | PQC (8q x 5L, 80 w) -> linear head (46) | 126 | 57, learns weakly |
+| oversized MLP | 4 -> 120 -> 84 -> linear | 10,934 | 226, healthy |
+
+Parameter counts above are measured (capacity ladder), not estimated. The
+hybrid's 126 splits as 80 quantum weights + 46 classical head. `matched_classical`
+is sized to the hybrid TOTAL (126), giving hidden width 8 and 122 parameters -
+so any gap to the hybrid is attributable to the circuit, not to a parameter
+advantage. The hybrid circuit itself is left exactly as in the paper, since it is
+the object of study and must stay comparable to the PPO runs.
 
 The gap between arm 1 and arm 2 conflates two things: the presence of a circuit,
 and the amount of trainable machinery. **NEW-02 separates them** by adding an arm
