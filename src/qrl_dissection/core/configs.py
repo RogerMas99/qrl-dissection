@@ -70,6 +70,41 @@ ARMS = {
 
 
 # ---------------------------------------------------------------------------
+# Block-sweep configs: OR and DR (paper blocks 1 and 2).
+#
+# exp01 studied block 3 (ansatz / entanglement). These two build the sweeps for
+# the other two blocks, as minimal variations on HYBRID_FIG4 so that only the
+# studied knob moves. Same simple set-up as exp01 (8 qubits, 60k steps): a first
+# pass for COVERAGE, not the final statistically-robust run. See the standing
+# note in docs/ROADMAP.md - every block sweep must later be re-run at 8-10 seeds
+# (plan "B").
+#
+# OR (Output Reuse, block 1): replicate the PQC readout R times before the
+# linear head. Knob: reuse_repetitions. Paper sweeps R in {4, 8, 16, 32}.
+# DR (Data Reuploading, block 2): circuit depth. Knob: n_layers_q. The paper
+# contrasts embedding philosophies; here we sweep depth on the Skolik template,
+# holding everything else at the Fig. 4 values.
+# ---------------------------------------------------------------------------
+def hybrid_or_config(reuse_repetitions: int) -> Dict[str, Any]:
+    """HYBRID_FIG4 plus Output Reuse of factor `reuse_repetitions`."""
+    cfg = dict(HYBRID_FIG4)
+    cfg["reuse_repetitions"] = int(reuse_repetitions)
+    return cfg
+
+
+def hybrid_dr_config(n_layers_q: int) -> Dict[str, Any]:
+    """HYBRID_FIG4 with circuit depth (Data Reuploading) set to `n_layers_q`."""
+    cfg = dict(HYBRID_FIG4)
+    cfg["n_layers_q"] = int(n_layers_q)
+    return cfg
+
+
+# Paper's sweep points, kept here so experiment scripts refer to them by name.
+OR_REPEATS = [4, 8, 16, 32]     # Output Reuse factors R
+DR_DEPTHS = [1, 2, 5]           # Data Reuploading depths L (Fig. 4 uses 5)
+
+
+# ---------------------------------------------------------------------------
 # Environments. The second axis the study grows along (the first is algorithm).
 #
 # The paper uses CartPole-v1 only. As experiments extend to Acrobot,

@@ -90,3 +90,38 @@ Reading:
   equal information, the circuit learns where the classical block does not.
 - matched (full) now learns -> the v1 death was largely the amputation; the
   circuit's advantage is smaller or absent. Compare best_ma50 to the hybrid's 54.
+
+
+---
+
+## Experiment 02 - Output Reuse (OR) under DQN - to run
+
+Paper block 1. Sweep R in {4,8,16,32} on the hybrid arm, 60k steps, 3 seeds
+(coverage). Paper (PPO): OR helps hybrid, not classical -> genuine quantum
+interaction. Question: does that transfer to DQN?
+
+| R | best_ma50 | greedy_best |
+|---|---|---|
+| 4 | | |
+| 8 | | |
+| 16 | | |
+| 32 | | |
+
+Reading: monotone gains with R (as paper) -> OR transfers. Flat/noisy -> OR
+effect not measurable in this weak-learning DQN regime (report as such).
+ROBUSTNESS (B): re-run at 8-10 seeds before concluding.
+
+## Experiment 03 - Data Reuploading (DR) under DQN - to run
+
+Paper block 2. Sweep depth L in {1,2,5} on the Skolik template, 60k steps, 3
+seeds (coverage). exp01's single-seed 103k run suggested depth matters (L=1
+failed), so DR may show a visible effect even here.
+
+| L | best_ma50 | greedy_best |
+|---|---|---|
+| 1 | | |
+| 2 | | |
+| 5 | | |
+
+Reading: performance rises with L (as paper) -> DR transfers. ROBUSTNESS (B):
+re-run at 8-10 seeds before concluding.

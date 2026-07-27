@@ -59,3 +59,19 @@ def test_fair_matched_control_uses_full_observation():
     real = 16 * width + width + width * 2 + 2
     assert abs(real - 126) <= 15, f"fair control built {real} params, expected ~126"
     assert width == 7
+
+
+def test_or_and_dr_configs_are_wellformed():
+    """OR and DR sweeps must produce valid hybrid configs that differ from the
+    base only in the intended knob. Pure dict check, no torch."""
+    from qrl_dissection.core.configs import (
+        HYBRID_FIG4, hybrid_or_config, hybrid_dr_config, OR_REPEATS, DR_DEPTHS,
+    )
+    for R in OR_REPEATS:
+        cfg = hybrid_or_config(R)
+        assert cfg["reuse_repetitions"] == R
+        assert cfg["n_layers_q"] == HYBRID_FIG4["n_layers_q"]  # only OR knob moved
+    for L in DR_DEPTHS:
+        cfg = hybrid_dr_config(L)
+        assert cfg["n_layers_q"] == L
+        assert "reuse_repetitions" not in cfg  # only DR knob moved
