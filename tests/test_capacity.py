@@ -47,3 +47,15 @@ def test_matched_arm_in_dim_accounts_for_output_reuse():
         "check in_dim includes n_repeats"
     )
     assert width == 8
+
+
+
+def test_fair_matched_control_uses_full_observation():
+    """The fair control must see all 4 observations (in_dim = 4 * n_repeats = 16),
+    not the paper's amputated 3. Cart position is a termination variable; hiding
+    it would make the arm fail from blindness rather than from being classical.
+    Param count must still land near the hybrid's 126."""
+    width, _ = match_hidden_width(126, in_dim=16, out_dim=2)   # full obs
+    real = 16 * width + width + width * 2 + 2
+    assert abs(real - 126) <= 15, f"fair control built {real} params, expected ~126"
+    assert width == 7

@@ -184,8 +184,22 @@ estimated from an episode CSV alone when no probe was attached.
 ## NEW-02 - capacity-matched classical control
 
 See `docs/EXPERIMENT-01.md`. The hidden width is derived from the reference
-hybrid arm's *measured* PQC parameter count, never from an analytic formula,
-because the formula depends on circuit-template details.
+hybrid arm's *measured* parameter count, never from an analytic formula, because
+the formula depends on circuit-template details.
+
+**Input parity (revision after exp01 v1).** The first version of this arm
+inherited the paper's classical input policy - `reuse_indices=[1,2,3]`, cart
+position discarded - because it was copied from `config_classical`. That is
+correct for `paper_linear` (a faithful replication) but WRONG for a fair control
+against the hybrid, which sees all four observations. Cart position is one of the
+two termination conditions of CartPole (|x| > 2.4), so the amputated arm may fail
+from blindness rather than from being classical, confounding the main
+circuit-vs-classical comparison. The fair control now uses the full observation
+(`observation="full"`, in_dim = 4 * n_repeats = 16, width 7, ~135 params). The
+amputated version is kept behind `observation="paper"` for an explicit ablation
+that measures the cost of the amputation itself. exp01 v1 results with the
+amputated input are therefore an ablation data point, not the main comparison;
+exp01 v2 re-runs the matched arm with full observation.
 
 ## NEW-03 - greedy evaluation hook
 

@@ -52,6 +52,16 @@ OVERSIZED_MLP: Dict[str, Any] = {
     "activation": nn.ReLU,
 }
 
+# Input policy for the capacity-matched control. The paper's classical arm keeps
+# only indices [1,2,3] (cart position discarded, following Hsiao et al.). That is
+# right for `paper_linear`, a faithful replication - but WRONG for a fair control
+# against the hybrid, which sees all four observations. Cart position is one of
+# the two termination conditions of CartPole (|x| > 2.4), so an arm that cannot
+# see it may fail from blindness rather than from being classical. The fair
+# control therefore uses the full observation. See docs/CORRECTIONS.md#new-02.
+MATCHED_REUSE_INDICES_FAIR = [0, 1, 2, 3]   # full observation, matches the hybrid
+MATCHED_REUSE_INDICES_PAPER = [1, 2, 3]     # paper's amputated set (for ablation)
+
 ARMS = {
     "paper_linear": ("classic", PAPER_LINEAR),
     "hybrid_fig4": ("hybrid", HYBRID_FIG4),
@@ -92,6 +102,7 @@ def build_arm_config(
     activation: type = nn.ReLU,
     env_id: str = "CartPole-v1",
     match_to: str = "total",
+    observation: str = "full",
     **overrides: Any,
 ):
     """Return (agent_type, agent_config) for an arm name.
@@ -112,6 +123,15 @@ def build_arm_config(
               MORE total parameters than the hybrid (it adds its own head on
               top), which biases the comparison toward the classical arm.
               Kept for completeness; not the default.
+
+    observation
+    -----------
+    "full"  (default) the matched control sees all four observations, exactly
+            like the hybrid. This is the fair control: same information, same
+            budget, only the circuit differs.
+    "paper" reproduce the paper's amputated input (cart position discarded).
+            Use ONLY for the ablation that measures how much the amputation
+            itself costs - not for the main circuit-vs-classical comparison.
     """
     from .capacity import match_hidden_width, pqc_parameter_budget
 
@@ -126,22 +146,27 @@ def build_arm_config(
             budget = budgets["quantum"]
         else:
             raise ValueError(f"match_to must be 'total' or 'quantum', got {match_to!r}")
-        indices = PAPER_LINEAR["reuse_indices"]
+        if observation == "full":
+            indices = MATCHED_REUSE_INDICES_FAIR
+        elif observation == "paper":
+            indices = MATCHED_REUSE_INDICES_PAPER
+        else:
+            raise ValueError(f"observation must be 'full' or 'paper', got {observation!r}")
         n_repeats = PAPER_LINEAR["n_repeats"]
-        # SelectiveOutputReuse replicates the reduced observation n_repeats
+        # SelectiveOutputReuse replicates the (reduced) observation n_repeats
         # times before the network, so the first Linear sees len(indices) *
         # n_repeats features, not len(indices). Sizing against the wrong in_dim
-        # made the matched arm ~2.5x too big (width 21 / 317 params instead of
-        # width 8 / 122). See docs/CORRECTIONS.md#new-02.
+        # made the matched arm ~2.5x too big. See docs/CORRECTIONS.md#new-02.
         in_dim = len(indices) * n_repeats
         width, spent = match_hidden_width(budget, in_dim=in_dim, out_dim=2)
         cfg = {
             "reuse_indices": list(indices),
-            "n_repeats": PAPER_LINEAR["n_repeats"],
+            "n_repeats": n_repeats,
             "net_arch": [width],
             "activation": activation,
             "_matched_to": hybrid_reference,
             "_match_target": match_to,
+            "_observation": observation,
             "_budget": budget,
             "_hybrid_total": budgets["total"],
             "_hybrid_quantum": budgets["quantum"],

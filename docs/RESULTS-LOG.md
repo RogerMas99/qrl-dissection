@@ -49,3 +49,44 @@ environment: <output of scripts/verify_env.py>
 | oversized_mlp | | | |
 
 Reading:
+
+
+---
+
+## Experiment 01 v1 - hybrid vs matched (AMPUTATED input) - SUPERSEDED as main comparison
+
+Grid: 4 arms x FIX-01 {off,on} x 3 seeds, 60k steps, batch 128, tf 10.
+
+| arm | params | best_ma50 (off/on) | greedy_best |
+|---|---|---|---|
+| paper_linear | 26 | 22.3 / 22.8 | ~10 |
+| matched_classical (amputated) | 122 | 23.9 / 22.2 | ~10 |
+| hybrid_fig4 | 126 | 54.9 / 53.0 | ~44 |
+| oversized_mlp | 10,934 | 253.9 / 285.5 | ~400 |
+
+**Caveat that demotes this from the main result:** matched_classical here used
+the paper's amputated input (cart position discarded), while the hybrid saw all
+four observations. So the arm may have died from missing a termination variable,
+not from being classical. Treated as an ABLATION (cost of the amputation), not
+the circuit-vs-classical comparison.
+
+Standing conclusions unaffected by the caveat:
+- FIX-01 shows no significant effect in any live arm (hybrid 54.9->53.0;
+  oversized_mlp +31.6; both within noise, n=3).
+- oversized_mlp confirms the DQN+CartPole setup is sound.
+
+## Experiment 01 v2 - hybrid vs matched (FULL input) - to run
+
+matched_classical rebuilt with observation="full" (in_dim 16, width 7, ~135
+params). This is the clean circuit-vs-classical comparison. Re-run only the
+matched arm; the other three are unchanged and their manifests are reused.
+
+| arm | FIX-01 off | FIX-01 on |
+|---|---|---|
+| matched_classical (full) | | |
+
+Reading:
+- matched (full) still dies -> the hybrid result stands: at equal budget AND
+  equal information, the circuit learns where the classical block does not.
+- matched (full) now learns -> the v1 death was largely the amputation; the
+  circuit's advantage is smaller or absent. Compare best_ma50 to the hybrid's 54.
