@@ -192,6 +192,30 @@ reclaimed, so a disconnected session cannot strand work.
 Verified with three concurrent processes on one nine-cell grid: nine manifests,
 no cell computed twice.
 
+**Across separate Google accounts, `--claim` is not available.** Two accounts
+cannot see each other's Drive, so there is no shared file to lock on. Partition
+by seed instead - disjoint slices cannot collide by construction - and merge the
+outputs afterwards:
+
+```bash
+# each account, disjoint seeds, everything else identical
+python scripts/run_dqn_suite.py --only exp03b --seeds 1 2 3 --outroot $RES   # account A
+python scripts/run_dqn_suite.py --only exp03b --seeds 4 5 6 --outroot $RES   # account B
+
+# then, in whichever account consolidates
+python scripts/merge_results.py <downloaded-from-B> $RES --apply
+```
+
+`merge_results.py` exists because merging by hand has two failure modes that are
+both silent. It merges directories recursively rather than nesting them - the
+`runs/runs/` problem - and it refuses to overwrite a file that exists in both
+trees with different content, reporting it instead. Byte-identical duplicates are
+skipped quietly, which is the expected outcome when partitions overlap slightly.
+
+What must be identical across accounts is the spec: same `--steps`, same
+hyper-parameters, same repository revision. The reuse guard catches a mismatch
+once the trees are merged, but it is cheaper to not create one.
+
 **Best-effort, and honestly so.** Google Drive's FUSE mount offers no atomic
 create, so two sessions starting the same cell inside the sync window can both
 claim it. The failure mode is duplicated compute, never a corrupted result: both
