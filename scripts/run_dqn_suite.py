@@ -28,6 +28,12 @@ per cell measured from the manifests already on this machine, so you can size a
 session honestly instead of guessing. `--seeds 4 5` does the same thing from the
 other direction: fewer cells per invocation.
 
+**Several sessions at once.** Either partition by hand (`--seeds 1 2 3` in one,
+`--seeds 4 5 6` in another - disjoint slices cannot collide), or pass `--claim`
+and run the identical command everywhere: each session locks a cell before
+starting it and skips cells another session holds. Locks go stale after 12h so a
+disconnected session cannot strand work. See docs/REUSE.md.
+
 **Resumability is at cell granularity.** Every experiment writes one manifest per
 cell and skips finished cells. Interrupt at any point, rerun the same command,
 and only what is missing is computed. That is what makes a budget flag safe: the
@@ -143,8 +149,32 @@ def preflight() -> bool:
     return ok
 
 
-def count_cells(outdir: pathlib.Path) -> int:
-    return len(list(outdir.glob("*.manifest.json"))) if outdir.exists() else 0
+def count_cells(outdir: pathlib.Path, steps: int | None = None):
+    """(usable, unusable) cell counts.
+
+    Counting manifests alone is misleading and was: a directory can be "full"
+    of cells run at a different step budget, which the reuse guard will refuse
+    one by one at run time. Better to say so in the plan, before a session is
+    committed to work that will not happen.
+    """
+    if not outdir.exists():
+        return 0, 0
+    usable = unusable = 0
+    for mp in outdir.glob("*.manifest.json"):
+        if steps is None:
+            usable += 1
+            continue
+        try:
+            m = json.loads(mp.read_text())
+            got = m.get("spec", {}).get("total_timesteps") or \
+                m.get("outcome", {}).get("total_timesteps")
+        except Exception:
+            got = None
+        if got is None or int(got) == int(steps):
+            usable += 1
+        else:
+            unusable += 1
+    return usable, unusable
 
 
 def cell_seconds(outdir: pathlib.Path):
@@ -176,17 +206,20 @@ def _hms(seconds: float) -> str:
     return f"{seconds/3600:.1f}h"
 
 
-def plan(outroot: pathlib.Path, seeds: List[int], only: List[str]) -> None:
+def plan(outroot: pathlib.Path, seeds: List[int], only: List[str],
+         steps: int | None = None) -> None:
     print(f"\n{'experiment':10s} {'done':>6s} {'target':>7s} {'per cell':>9s} "
           f"{'remaining':>10s}  what")
     print("-" * 100)
     total_left = 0.0
-    unknown = []
+    unknown, stale_note = [], []
     for key in only:
         spec = SUITE[key]
         d = outroot / spec["outdir"]
-        done = count_cells(d)
+        done, stale = count_cells(d, steps)
         target = spec["cells_per_seed"] * len(seeds)
+        if stale:
+            stale_note.append((key, stale))
         per = cell_seconds(d)
         left = max(0, target - done)
         if per:
@@ -203,13 +236,21 @@ def plan(outroot: pathlib.Path, seeds: List[int], only: List[str]) -> None:
         print(f"estimated time remaining (measured on THIS machine): {_hms(total_left)}")
     if unknown:
         print(f"no timing yet for: {', '.join(unknown)} - run one cell to calibrate")
+    if stale_note:
+        print("\n!! cells present but at a DIFFERENT step budget than requested "
+              f"({steps}):")
+        for key, n in stale_note:
+            print(f"     {key}: {n} cell(s). The reuse guard will refuse each of "
+                  "them, so they count as pending.")
+        print("   Decide deliberately: keep the old budget (drop --steps), or move")
+        print("   those cells aside so the new budget starts from a clean directory.")
     print("Counts are per-experiment manifests; exp04 and exp04b share a directory.")
     print("\nIf a single cell is longer than a session you can hold open, size the"
           "\nsession in CELLS rather than minutes: --max-cells 2, or --seeds 4 5.")
 
 
 def run(key: str, outroot: pathlib.Path, seeds: List[int], steps: int | None,
-        deadline: float | None, budget) -> bool:
+        deadline: float | None, budget, claim: bool = False) -> bool:
     """Returns False if a budget ran out before the experiment finished.
 
     `budget` is a one-element list holding the remaining cell allowance, mutated
@@ -222,6 +263,8 @@ def run(key: str, outroot: pathlib.Path, seeds: List[int], steps: int | None,
     cmd += s.get("extra", [])
     if steps:
         cmd += ["--steps", str(steps)]
+    if claim:
+        cmd += ["--claim"]
 
     print("\n" + "=" * 68)
     print(f"{key}  -  {s['what']}")
@@ -243,7 +286,8 @@ def run(key: str, outroot: pathlib.Path, seeds: List[int], steps: int | None,
             print(line, end="")
 
             stripped = line.strip()
-            cell_finished = stripped.startswith("ok ") or stripped.startswith("[skip]")
+            cell_finished = (stripped.startswith("ok ") or stripped.startswith("[skip]")
+                             or stripped.startswith("busy "))
 
             if deadline and not over_budget and time.time() > deadline:
                 over_budget = True
@@ -276,6 +320,10 @@ def main() -> int:
     p.add_argument("--only", nargs="+", choices=list(SUITE), default=list(SUITE))
     p.add_argument("--steps", type=int, default=None,
                    help="override the per-experiment default budget")
+    p.add_argument("--claim", action="store_true",
+                   help="cooperative locking, for running the SAME command from "
+                        "several Colab sessions at once. Each session takes "
+                        "whatever is free instead of you partitioning by hand.")
     p.add_argument("--max-cells", type=int, default=None,
                    help="stop after N cells complete. Deterministic, unlike "
                         "--budget-minutes, and the right control when one cell "
@@ -299,7 +347,7 @@ def main() -> int:
         print("! exp04 stage 2 before stage 1: the liveness gate has not run.\n")
 
     if args.plan:
-        plan(outroot, seeds, order)
+        plan(outroot, seeds, order, args.steps)
         return 0
 
     if not args.skip_preflight and not preflight():
@@ -309,12 +357,12 @@ def main() -> int:
     budget = [args.max_cells]
     t0 = time.time()
     for key in order:
-        if not run(key, outroot, seeds, args.steps, deadline, budget):
+        if not run(key, outroot, seeds, args.steps, deadline, budget, args.claim):
             break
 
     print("\n" + "=" * 68)
     print(f"elapsed {(time.time()-t0)/60:.1f} min")
-    plan(outroot, seeds, order)
+    plan(outroot, seeds, order, args.steps)
     print("\nRerun the same command to continue; finished cells are skipped.")
     return 0
 

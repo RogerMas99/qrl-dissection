@@ -54,7 +54,10 @@ from typing import Any, Dict, List
 import qrl_dissection
 from qrl_dissection.core.configs import DR_DEPTHS, hybrid_dr_config
 from qrl_dissection.dqn import GreedyEvalConfig, SafeDQN
-from qrl_dissection.dqn.runner import reuse_or_none
+from qrl_dissection.dqn.runner import claim_cell, release_cell, reuse_or_none
+
+# Set from --claim. A list so run_one can read it without a global.
+CLAIM = [False]
 
 # Copied from exp03 verbatim, INCLUDING train_frequency=10. That value
 # gradient-starves small networks (exp01), and on its own merits it would be 1 -
@@ -86,6 +89,9 @@ def run_one(outdir, name, cfg, seed, steps, kw, every):
     if hit is not None:
         print(f"[skip] {name}")
         return hit
+    if CLAIM[0] and not claim_cell(manifest):
+        print(f"busy   {name} - another session holds this cell")
+        return None
     print(f"[run ] {name}", flush=True)
     runner = SafeDQN(agent_type="hybrid", agent_config=cfg, run_name=name,
                      seed=seed, fix_autoreset=True,
@@ -95,6 +101,8 @@ def run_one(outdir, name, cfg, seed, steps, kw, every):
     m = {"name": name, "seed": seed, "total_timesteps": steps, "dqn_kwargs": kw, "fix_autoreset": True, "ent": False,
          "outcome": out.__dict__, "config": {k: str(v) for k, v in cfg.items()}}
     manifest.write_text(json.dumps(m, indent=2, default=str))
+    if CLAIM[0]:
+        release_cell(manifest)
     print(f"       ok {out.wall_seconds}s  phantoms {100*out.probe['frac_poison']:.2f}%")
     return m
 
@@ -102,6 +110,8 @@ def run_one(outdir, name, cfg, seed, steps, kw, every):
 def main() -> int:
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--claim", action="store_true",
+                   help="cooperative locking across parallel sessions")
     p.add_argument("--outdir", default="results/exp03b_dqn_cartpole_dr_unentangled")
     p.add_argument("--depths", nargs="+", type=int, default=DR_DEPTHS)
     p.add_argument("--seeds", nargs="+", type=int, default=[1, 2, 3])
@@ -109,6 +119,7 @@ def main() -> int:
     p.add_argument("--eval-every", type=int, default=10_000)
     p.add_argument("--smoke", action="store_true", help="1 seed, 5k steps")
     args = p.parse_args()
+    CLAIM[0] = args.claim
 
     print(json.dumps(qrl_dissection.upstream_report(), indent=2))
 

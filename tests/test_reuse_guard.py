@@ -141,3 +141,48 @@ def test_a_real_mismatch_beats_a_legacy_gap(tmp_path):
     with pytest.raises(RuntimeError, match="total_timesteps"):
         reuse_or_none(p, {"seed": 1, "total_timesteps": 60_000,
                           "dqn_kwargs": {"batch_size": 128}})
+
+
+# ---------------------------------------------------------------------------
+# Cooperative claiming across parallel sessions.
+# ---------------------------------------------------------------------------
+
+def test_claim_is_exclusive_then_released(tmp_path):
+    from qrl_dissection.dqn.runner import claim_cell, release_cell
+    mp = tmp_path / "run.manifest.json"
+    assert claim_cell(mp, owner="A") is True
+    assert claim_cell(mp, owner="B") is False, "two sessions must not hold one cell"
+    release_cell(mp)
+    assert claim_cell(mp, owner="B") is True, "released cell must be claimable"
+
+
+def test_stale_claims_are_reclaimed(tmp_path):
+    """A session that dies must not reserve a cell forever - with multi-hour
+    cells and flaky Colab runtimes, that would strand work indefinitely."""
+    import json as _json
+    import time as _time
+    from qrl_dissection.dqn.runner import _lock_path, claim_cell
+
+    mp = tmp_path / "run.manifest.json"
+    _lock_path(mp).write_text(_json.dumps({"owner": "dead", "t": _time.time() - 3600 * 30}))
+    assert claim_cell(mp, ttl_hours=12, owner="B") is True
+
+
+def test_fresh_claims_are_respected(tmp_path):
+    import json as _json
+    import time as _time
+    from qrl_dissection.dqn.runner import _lock_path, claim_cell
+
+    mp = tmp_path / "run.manifest.json"
+    _lock_path(mp).write_text(_json.dumps({"owner": "alive", "t": _time.time()}))
+    assert claim_cell(mp, ttl_hours=12, owner="B") is False
+
+
+def test_unreadable_lock_is_treated_as_stale(tmp_path):
+    """Drive can leave a partial file. Refusing forever on garbage would be worse
+    than the duplicated compute of claiming it."""
+    from qrl_dissection.dqn.runner import _lock_path, claim_cell
+
+    mp = tmp_path / "run.manifest.json"
+    _lock_path(mp).write_text("{not json")
+    assert claim_cell(mp, owner="B") is True

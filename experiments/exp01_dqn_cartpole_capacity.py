@@ -69,6 +69,8 @@ def build_specs(args) -> list:
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--claim", action="store_true",
+                   help="cooperative locking across parallel sessions")
     p.add_argument("--outdir", default="results/exp01_dqn_cartpole_capacity")
     p.add_argument("--arms", nargs="+", default=CLASSICAL_ARMS)
     p.add_argument("--seeds", nargs="+", type=int, default=DEFAULT_SEEDS)
@@ -108,7 +110,7 @@ def main() -> int:
     specs = build_specs(args)
     print(f"\n=== running {len(specs)} cells into {outdir} ===")
     results = run_grid(specs, outdir,
-                       eval_cfg=GreedyEvalConfig(every_steps=args.eval_every))
+                       eval_cfg=GreedyEvalConfig(every_steps=args.eval_every, claim=args.claim))
 
     failures = [r for r in results if "error" in r]
     print(f"\ndone: {len(results) - len(failures)} ok, {len(failures)} failed")

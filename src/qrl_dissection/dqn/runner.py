@@ -14,8 +14,10 @@ in docs/RESULTS-LOG.md get committed.
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import platform
+import time
 import subprocess
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Iterable, List, Optional
@@ -134,6 +136,61 @@ def reuse_or_none(manifest_path, expected, env_id=None, on_mismatch="error"):
     return stored
 
 
+# ---------------------------------------------------------------------------
+# Cooperative claiming, for running the same grid from several Colab sessions.
+#
+# The alternative is partitioning by hand - one session per seed range - which
+# works and needs no code. This exists because with cells that run for hours,
+# hand-partitioning means deciding the split up front and living with it: if one
+# session dies at 3am its slice simply does not get done, and if one slice turns
+# out cheaper that session sits idle.
+#
+# Best-effort, and honestly so. Google Drive's FUSE mount gives no atomic
+# create, so two sessions starting the same cell within the sync window can both
+# claim it. The failure mode is duplicated compute, never a corrupted result:
+# both write the same manifest for the same spec. With multi-hour cells the
+# window is a rounding error.
+#
+# Stale locks are reclaimed after `ttl_hours` - a disconnected session must not
+# reserve a cell forever.
+# ---------------------------------------------------------------------------
+
+def _lock_path(manifest_path) -> pathlib.Path:
+    return pathlib.Path(str(manifest_path).replace(".manifest.json", ".lock.json"))
+
+
+def claim_cell(manifest_path, ttl_hours: float = 12.0, owner: str = "") -> bool:
+    """Try to reserve a cell. False means another live session holds it."""
+    lock = _lock_path(manifest_path)
+    now = time.time()
+    if lock.exists():
+        try:
+            held = json.loads(lock.read_text())
+            age_h = (now - float(held.get("t", 0))) / 3600.0
+            if age_h < ttl_hours:
+                return False
+        except Exception:
+            pass                    # unreadable lock: treat as stale
+    owner = owner or f"{platform.node()}:{os.getpid()}"
+    try:
+        lock.write_text(json.dumps({"owner": owner, "t": now}))
+    except OSError:
+        return True                 # cannot lock (read-only fs) - just run
+    time.sleep(0.5)                 # let a competing write land before checking
+    try:
+        return json.loads(lock.read_text()).get("owner") == owner
+    except Exception:
+        return True
+
+
+def release_cell(manifest_path) -> None:
+    """Drop the reservation. Safe to call when no lock is held."""
+    try:
+        _lock_path(manifest_path).unlink()
+    except OSError:
+        pass
+
+
 def run_arm(
     spec: RunSpec,
     outdir: pathlib.Path,
@@ -142,6 +199,8 @@ def run_arm(
     progress_bar: bool = False,
     force: bool = False,
     on_mismatch: str = "error",
+    claim: bool = False,
+    claim_ttl_hours: float = 12.0,
 ) -> Dict[str, Any]:
     """Execute one cell, or return the existing manifest if it answers the same
     question. A manifest with the same name but a different spec is a mismatch,
@@ -155,6 +214,9 @@ def run_arm(
                             on_mismatch=on_mismatch)
         if hit is not None:
             return hit
+
+    if claim and not claim_cell(manifest_path, claim_ttl_hours):
+        return {"run_name": spec.run_name, "claimed_elsewhere": True}
 
     agent_type, agent_config = build_arm_config(spec.arm, env_id=env_id)
 
@@ -182,6 +244,8 @@ def run_arm(
         "python": platform.python_version(),
     }
     manifest_path.write_text(json.dumps(manifest, indent=2, default=str))
+    if claim:
+        release_cell(manifest_path)
     return manifest
 
 
@@ -192,6 +256,8 @@ def run_grid(
     eval_cfg: Optional[GreedyEvalConfig] = None,
     progress_bar: bool = False,
     verbose: bool = True,
+    claim: bool = False,
+    claim_ttl_hours: float = 12.0,
 ) -> List[Dict[str, Any]]:
     results = []
     specs = list(specs)
@@ -200,8 +266,13 @@ def run_grid(
             print(f"[{i}/{len(specs)}] {spec.run_name}", flush=True)
         try:
             m = run_arm(spec, outdir, env_id=env_id, eval_cfg=eval_cfg,
-                        progress_bar=progress_bar)
+                        progress_bar=progress_bar, claim=claim,
+                        claim_ttl_hours=claim_ttl_hours)
             results.append(m)
+            if m.get("claimed_elsewhere"):
+                if verbose:
+                    print("    busy - another session holds this cell", flush=True)
+                continue
             if verbose:
                 p = m["outcome"]["probe"]
                 print(f"    ok  {m['outcome']['wall_seconds']}s  "

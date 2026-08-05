@@ -55,8 +55,26 @@ def main() -> int:
             skipped += 1
             continue
         if dst.exists():
-            print(f"  SKIP {old} -> {new}: target already exists, leaving both alone")
-            skipped += 1
+            existing = list(dst.glob("*.manifest.json"))
+            if existing:
+                print(f"  SKIP {old} -> {new}: target already holds "
+                      f"{len(existing)} cells. Merging could mix runs from "
+                      "different specs, so both are left alone - resolve by hand.")
+                skipped += 1
+                continue
+            # An empty target is not a conflict. The suite creates these
+            # directories the moment it starts an experiment, so an interrupted
+            # run leaves empty shells that would otherwise block adoption
+            # forever - which is exactly the failure this branch was written for.
+            print(f"  target {new} exists but is empty - moving contents in")
+            if not args.dry_run:
+                for item in src.iterdir():
+                    shutil.move(str(item), str(dst / item.name))
+                try:
+                    src.rmdir()
+                except OSError:
+                    pass
+            moved += 1
             continue
         print(f"  {'would move' if args.dry_run else 'moving'} {old} -> {new}"
               f"  ({len(list(src.glob('*.manifest.json')))} cells)")

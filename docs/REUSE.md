@@ -156,6 +156,53 @@ CPU runtime, a GPU runtime and a laptop, and it depends strongly on
 reaches `learning_starts` measures the environment loop and no gradient steps at
 all, which overstates throughput badly.
 
+## Running several Colab sessions at once
+
+Two ways. Both work; they differ in who does the bookkeeping.
+
+**Partition by hand.** Give each session a disjoint slice and nothing can
+collide, because two sessions never look at the same cell:
+
+```bash
+# session A
+python scripts/run_dqn_suite.py --only exp03b --seeds 1 2 3 --outroot $RES
+# session B
+python scripts/run_dqn_suite.py --only exp03b --seeds 4 5 6 --outroot $RES
+# session C - a different experiment entirely
+python scripts/run_dqn_suite.py --only exp02 --pass robustness --outroot $RES
+```
+
+Explicit, needs no new machinery, and you know exactly what each session is
+doing. The cost is that the split is decided up front: if session B dies at 3am
+its slice simply does not get done, and if one slice turns out cheaper that
+session sits idle.
+
+**Or let them coordinate.** With `--claim`, run the *same* command in every
+session and each takes whatever is free:
+
+```bash
+python scripts/run_dqn_suite.py --pass robustness --outroot $RES --claim --max-cells 2
+```
+
+A session writes `<run>.lock.json` before starting a cell and removes it on
+completion. Another session seeing a fresh lock prints `busy` and moves to the
+next cell. Locks older than `--claim-ttl` (12h default) are treated as stale and
+reclaimed, so a disconnected session cannot strand work.
+
+Verified with three concurrent processes on one nine-cell grid: nine manifests,
+no cell computed twice.
+
+**Best-effort, and honestly so.** Google Drive's FUSE mount offers no atomic
+create, so two sessions starting the same cell inside the sync window can both
+claim it. The failure mode is duplicated compute, never a corrupted result: both
+write the same manifest for the same spec, and the reuse guard still refuses
+anything whose spec differs. With cells that run for hours, that window is a
+rounding error.
+
+**What must not differ between sessions** is the spec: same `--steps`, same
+hyper-parameters, same `--outroot`. Different budgets writing into one directory
+is exactly what the FIX-08 guard exists to catch, and it will - loudly, per cell.
+
 ## Practical consequences
 
 - **Changing hyper-parameters means a new directory or a new tag.** The guard

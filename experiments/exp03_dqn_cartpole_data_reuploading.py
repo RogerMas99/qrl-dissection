@@ -30,7 +30,10 @@ import qrl_dissection
 from qrl_dissection import analysis
 from qrl_dissection.core.configs import DR_DEPTHS, hybrid_dr_config
 from qrl_dissection.dqn import GreedyEvalConfig, SafeDQN
-from qrl_dissection.dqn.runner import reuse_or_none
+from qrl_dissection.dqn.runner import claim_cell, release_cell, reuse_or_none
+
+# Set from --claim. A list so run_one can read it without a global.
+CLAIM = [False]
 
 
 def run_one(outdir, name, cfg, seed, fix_autoreset, steps, kw):
@@ -42,6 +45,9 @@ def run_one(outdir, name, cfg, seed, fix_autoreset, steps, kw):
     if hit is not None:
         print(f"[skip] {name}")
         return hit
+    if CLAIM[0] and not claim_cell(manifest):
+        print(f"busy   {name} - another session holds this cell")
+        return None
     print(f"[run ] {name}", flush=True)
     runner = SafeDQN(agent_type="hybrid", agent_config=cfg, run_name=name,
                      seed=seed, fix_autoreset=fix_autoreset,
@@ -50,6 +56,8 @@ def run_one(outdir, name, cfg, seed, fix_autoreset, steps, kw):
     m = {"name": name, "seed": seed, "total_timesteps": steps, "dqn_kwargs": kw, "fix_autoreset": fix_autoreset,
          "outcome": out.__dict__, "config": {k: str(v) for k, v in cfg.items()}}
     manifest.write_text(json.dumps(m, indent=2, default=str))
+    if CLAIM[0]:
+        release_cell(manifest)
     print(f"       ok {out.wall_seconds}s  phantoms {100*out.probe['frac_poison']:.2f}%")
     return m
 
@@ -57,6 +65,8 @@ def run_one(outdir, name, cfg, seed, fix_autoreset, steps, kw):
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--claim", action="store_true",
+                   help="cooperative locking across parallel sessions")
     p.add_argument("--outdir", default="results/exp03_dqn_cartpole_data_reuploading")
     p.add_argument("--depths", nargs="+", type=int, default=DR_DEPTHS)
     p.add_argument("--seeds", nargs="+", type=int, default=[1, 2, 3])
@@ -64,6 +74,7 @@ def main() -> int:
     p.add_argument("--fix-autoreset", action="store_true", default=True)
     p.add_argument("--smoke", action="store_true", help="1 seed, L in {1,5}")
     args = p.parse_args()
+    CLAIM[0] = args.claim
 
     print(json.dumps(qrl_dissection.upstream_report(), indent=2))
     if args.smoke:
