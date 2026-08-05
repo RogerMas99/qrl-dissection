@@ -29,6 +29,10 @@ def main() -> int:
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("root", help="the folder holding exp01/, exp02/, ...")
+    p.add_argument("--only", nargs="+", choices=sorted(MAPPING),
+                   help="adopt only these. Anything left out stays where it is, "
+                        "which is the right choice for a folder you intend to "
+                        "re-run rather than reuse.")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
@@ -37,8 +41,12 @@ def main() -> int:
         print(f"{root} does not exist. In Colab, mount Drive first.")
         return 1
 
+    wanted = set(args.only) if args.only else set(MAPPING)
+    left_alone = sorted(set(MAPPING) - wanted)
     moved = skipped = 0
     for old, new in MAPPING.items():
+        if old not in wanted:
+            continue
         src, dst = root / old, root / new
         if not src.exists():
             continue
@@ -56,6 +64,10 @@ def main() -> int:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(src), str(dst))
         moved += 1
+
+    for old in left_alone:
+        if (root / old).exists():
+            print(f"  leaving {old} where it is (not in --only)")
 
     if not moved and not skipped:
         print(f"nothing to adopt under {root} - already in the suite layout, or empty")

@@ -5,6 +5,7 @@ Three are canonical. Everything else is history, kept for provenance.
 | notebook | role |
 |---|---|
 | `00_fix05_verification.ipynb` | **Evidence.** Reproduces FIX-05 from scratch, standalone — needs nothing from this repo. Cite it in the memoria; it is the artefact that proves the correction rather than asserting it. |
+| `11_adopt_previous_results.ipynb` | **One-off.** Brings the exp02/exp03 runs already on Drive into the layout the suite reads, so they count as seeds already done instead of being recomputed. Deliberately leaves exp01 alone — it ran at 60k while everything else ran at 100k. |
 | `10_dqn_suite_runner.ipynb` | **The run.** All five DQN grids, resumable, seeds as a flag. Coverage pass, then robustness pass. |
 | `20_dqn_results.ipynb` | **The results.** Every final table and figure, with the paper's own 10-seed PPO curves overlaid. Trains nothing. |
 
@@ -22,7 +23,8 @@ confound (NEW-02) surfaced. That history is worth more than a tidy directory.
 
 ## Order of work
 
-0. In `10`, run section **2b — What do I already have?** first. It inventories
+0. Run `11_adopt_previous_results.ipynb` once, if you have results from the
+   exploratory notebooks sitting in Drive. Then section **2b** of `10`. It inventories
    the Drive folder: how many cells finished, at what step budget, whether the
    episode CSVs survived, and whether the manifests predate the reuse guard.
    Previous sessions left real results there; know their shape before adding to

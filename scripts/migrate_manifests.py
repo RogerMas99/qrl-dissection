@@ -26,10 +26,15 @@ What is recoverable, and what is not
 Nothing is overwritten without a backup: each file is copied to
 `<name>.manifest.json.bak` before being rewritten.
 
-    python scripts/migrate_manifests.py /content/drive/MyDrive/tfm_qrl/exp03 \\
-        --dqn-kwargs '{"batch_size":128,"buffer_size":10000,"train_frequency":10}'
+    # The normal case: point it at the parent and let it recognise each
+    # experiment. Hyper-parameters differ between them, so this is safer than
+    # one blanket --dqn-kwargs.
+    python scripts/migrate_manifests.py /content/drive/MyDrive/tfm_qrl --dry-run
+    python scripts/migrate_manifests.py /content/drive/MyDrive/tfm_qrl
 
-    python scripts/migrate_manifests.py <dir> --dry-run     # inspect first
+    # Only for a directory it does not recognise:
+    python scripts/migrate_manifests.py <dir> \\
+        --dqn-kwargs '{"batch_size":128,"buffer_size":10000,"train_frequency":10}'
 """
 import argparse
 import json
@@ -37,6 +42,70 @@ import pathlib
 import re
 import shutil
 import sys
+
+
+# Per-experiment defaults, read from the scripts that produced the runs. This
+# table exists because `--dqn-kwargs` is the one field no artefact records, and
+# whatever gets written becomes the value every future run is checked against -
+# so hand-typing it per directory is a footgun, and typing ONE value for a whole
+# Drive folder is worse: exp04 differs from the CartPole experiments on two of
+# three keys.
+#
+# Source lines, so this can be re-verified rather than trusted:
+#   exp01  experiments/exp01_dqn_cartpole_capacity.py, argparse defaults
+#   exp02  experiments/exp02_dqn_cartpole_output_reuse.py :: kw
+#   exp03  experiments/exp03_dqn_cartpole_data_reuploading.py :: kw
+#   exp03b experiments/exp03b_dqn_cartpole_dr_unentangled.py :: DQN_KWARGS
+#   exp04  experiments/exp04_dqn_frozenlake_embeddings.py :: DQN_KWARGS
+CARTPOLE_KWARGS = {"batch_size": 128, "buffer_size": 10_000, "train_frequency": 10}
+
+KNOWN_KWARGS = {
+    "exp01_dqn_cartpole_capacity": CARTPOLE_KWARGS,   # argparse defaults, tf=10
+    "exp02_dqn_cartpole_output_reuse": CARTPOLE_KWARGS,
+    "exp03_dqn_cartpole_data_reuploading": CARTPOLE_KWARGS,
+    "exp03b_dqn_cartpole_dr_unentangled": CARTPOLE_KWARGS,
+    "exp04_dqn_frozenlake_embeddings": {"batch_size": 128, "buffer_size": 50_000,
+                                        "train_frequency": 1, "learning_starts": 1_000},
+}
+# The pre-adoption folder names, so migration works before or after
+# scripts/adopt_legacy_layout.py has run.
+for _short, _long in (("exp01", "exp01_dqn_cartpole_capacity"),
+                      ("exp02", "exp02_dqn_cartpole_output_reuse"),
+                      ("exp03", "exp03_dqn_cartpole_data_reuploading"),
+                      ("exp03b", "exp03b_dqn_cartpole_dr_unentangled"),
+                      ("exp04", "exp04_dqn_frozenlake_embeddings")):
+    KNOWN_KWARGS[_short] = KNOWN_KWARGS[_long]
+
+
+def kwargs_for(directory: pathlib.Path, override):
+    """Explicit override wins; otherwise recognise the directory."""
+    if override is not None:
+        return override, "supplied"
+    hit = KNOWN_KWARGS.get(directory.name)
+    return (hit, f"recognised {directory.name}") if hit else (None, "unknown")
+
+
+def arm_for(name: str, override):
+    """Recover the arm from the run name.
+
+    exp01 mixes several arms in one directory, so a single --arm would be wrong
+    for most of its cells. Run names carry it: `paper_linear__fix01on__s1`.
+    exp02/exp03 name theirs `hybrid_OR16__s2` / `hybrid_DR5__s1`, which are all
+    variations on hybrid_fig4 - their guard checks seed, budget and kwargs, not
+    the arm, so recording the base arm is accurate enough and never used to
+    rebuild a config.
+    """
+    if override:
+        return override
+    for known in ("paper_linear", "oversized_mlp", "matched_classical",
+                  "hybrid_fig4", "frozen_onehot_mlp", "frozen_matched_scalar",
+                  "frozen_scalar_mlp_large"):
+        if name.startswith(known):
+            return known
+    if name.startswith("hybrid_"):        # hybrid_OR16__s2, hybrid_DR5__s1
+        return "hybrid_fig4"
+    return None
+
 
 RECOVERABLE = ("arm", "seed", "fix_autoreset", "total_timesteps", "tag")
 
@@ -88,10 +157,11 @@ def migrate(mp: pathlib.Path, dqn_kwargs, arm, env_id, dry_run) -> str:
                 spec["_total_timesteps_inferred_from_csv"] = True
 
     if "arm" not in spec:
-        if arm:
-            spec["arm"] = arm
+        inferred = arm_for(name, arm)
+        if inferred:
+            spec["arm"] = inferred
         else:
-            return f"SKIP {name}: no `arm` and none supplied (--arm)"
+            return f"SKIP {name}: arm not recoverable from the name; pass --arm"
     spec.setdefault("tag", "")
     if dqn_kwargs is not None:
         spec["dqn_kwargs"] = dqn_kwargs
@@ -114,25 +184,45 @@ def main() -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("results_dir")
     p.add_argument("--dqn-kwargs", default=None,
-                   help="JSON. Take it from the script that produced the runs.")
-    p.add_argument("--arm", default=None, help="only if the manifests lack one")
+                   help="JSON. Only needed for directories this script does not "
+                        "recognise; it knows exp01-exp04's own values. An "
+                        "override applies to EVERY directory, so use it on one "
+                        "directory at a time.")
+    p.add_argument("--arm", default=None,
+                   help="only if it cannot be read from the run names")
     p.add_argument("--env-id", default="CartPole-v1")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
-    kwargs = json.loads(args.dqn_kwargs) if args.dqn_kwargs else None
-    if kwargs is None and not args.dry_run:
-        print("! no --dqn-kwargs given: manifests will still be unverifiable on "
-              "that field.\n  Supply it, or accept them with on_mismatch='legacy'.\n")
+    override = json.loads(args.dqn_kwargs) if args.dqn_kwargs else None
 
     root = pathlib.Path(args.results_dir)
     files = sorted(root.rglob("*.manifest.json"))
     if not files:
         print(f"no manifests under {root}")
         return 1
-    print(f"{len(files)} manifests under {root}\n")
+
+    # Group by directory: hyper-parameters differ per experiment, so one blanket
+    # value across a whole Drive folder would write the wrong thing into most of
+    # it. Pointing this at the parent folder is the normal case and now safe.
+    by_dir = {}
     for mp in files:
-        print("  " + migrate(mp, kwargs, args.arm, args.env_id, args.dry_run))
+        by_dir.setdefault(mp.parent, []).append(mp)
+
+    print(f"{len(files)} manifests in {len(by_dir)} director"
+          f"{'y' if len(by_dir)==1 else 'ies'} under {root}\n")
+    unknown_dirs = []
+    for d, mps in sorted(by_dir.items()):
+        kwargs, how = kwargs_for(d, override)
+        print(f"{d.name}/  ({len(mps)} manifests, dqn_kwargs {how})")
+        if kwargs is None:
+            unknown_dirs.append(d.name)
+            print("    ! unrecognised directory and no --dqn-kwargs: that field")
+            print("      stays unverifiable. Pass --dqn-kwargs from the script")
+            print("      that produced these runs.")
+        for mp in mps:
+            print("    " + migrate(mp, kwargs, args.arm, args.env_id, args.dry_run))
+        print()
     if args.dry_run:
         print("\ndry run: nothing written. Re-run without --dry-run to apply.")
     else:
