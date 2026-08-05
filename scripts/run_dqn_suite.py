@@ -81,7 +81,7 @@ SUITE: Dict[str, Dict] = {
     "exp02": {
         "script": "exp02_dqn_cartpole_output_reuse.py",
         "outdir": "exp02_dqn_cartpole_output_reuse",
-        "cells_per_seed": 4,     # R in {4, 8, 16, 32}
+        "cells_per_seed": 8,     # R in {4,8,16,32} x {hybrid, classical control}
         "env": "CartPole-v1",
         "what": "block 1, Output Reuse",
     },

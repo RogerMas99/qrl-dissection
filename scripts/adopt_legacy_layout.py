@@ -25,6 +25,36 @@ MAPPING = {
 }
 
 
+
+def merge_into(src: pathlib.Path, dst: pathlib.Path, dry_run: bool) -> int:
+    """Move the CONTENTS of src into dst, merging directories recursively.
+
+    `shutil.move(dir, existing_dir)` puts the source INSIDE the target rather
+    than merging - so moving `expNN/runs` into a directory that already has a
+    `runs/` produces `runs/runs/`, and every episode CSV disappears from where
+    the analysis looks for it. That is not hypothetical: it happened, and the
+    inventory caught it only because it counts CSVs separately from manifests.
+    """
+    moved = 0
+    for item in sorted(src.iterdir()):
+        target = dst / item.name
+        if item.is_dir() and target.exists():
+            moved += merge_into(item, target, dry_run)     # recurse, do not nest
+            if not dry_run:
+                try:
+                    item.rmdir()
+                except OSError:
+                    pass
+        elif target.exists():
+            print(f"      keeping existing {target.relative_to(dst.parent)}, "
+                  f"leaving {item.name} in place")
+        else:
+            if not dry_run:
+                shutil.move(str(item), str(target))
+            moved += 1
+    return moved
+
+
 def main() -> int:
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -66,10 +96,9 @@ def main() -> int:
             # directories the moment it starts an experiment, so an interrupted
             # run leaves empty shells that would otherwise block adoption
             # forever - which is exactly the failure this branch was written for.
-            print(f"  target {new} exists but is empty - moving contents in")
+            print(f"  target {new} exists but holds no cells - merging contents in")
+            merge_into(src, dst, args.dry_run)
             if not args.dry_run:
-                for item in src.iterdir():
-                    shutil.move(str(item), str(dst / item.name))
                 try:
                     src.rmdir()
                 except OSError:

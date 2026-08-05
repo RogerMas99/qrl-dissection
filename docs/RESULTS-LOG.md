@@ -96,6 +96,35 @@ Reading:
 
 ## Experiment 02 - Output Reuse (OR) under DQN - to run
 
+!! AMENDMENT. The classical control was specified in this experiment's docstring
+   from the start and never implemented: the script swept R on the hybrid arm
+   only. That made the experiment unable to test its own question. The paper's
+   finding is not "OR helps" but "OR helps hybrid agents and NOT classical ones"
+   - a statement about the DIFFERENCE between two arms - so a hybrid-only sweep
+   can show OR helping and still say nothing about whether the help is quantum.
+   Same lesson as exp01's broken control, on a different axis.
+
+   The control now runs by default (`classical_OR{R}__s{seed}`, transcribed from
+   post-pqc-inference.py :: config_classical). It costs almost nothing: measured
+   0.4s per cell against 32.7s for its hybrid counterpart at the same budget, and
+   ~9h at full budget. The 16 hybrid cells already on Drive stay valid; the
+   control is added alongside them.
+
+   AND NOTE WHAT THE PAPER'S OWN DATA SAYS, now that we have it at 10 seeds:
+
+   | R | Quantum | Classical |
+   |---|---|---|
+   | 4 | 116.5 +/- 28.9 | 263.9 +/- 18.4 |
+   | 8 | 230.0 +/- 88.1 | 320.0 +/- 36.3 |
+   | 16 | 354.8 +/- 124.3 | 381.7 +/- 37.3 |
+   | 32 | 430.5 +/- 115.6 | 330.2 +/- 63.4 |
+
+   The classical arm is AHEAD at three of the four reuse factors, and the single
+   point where the hybrid leads (r32) has a standard deviation of 115 against a
+   gap of 100 - inside noise. Whatever exp02 finds under DQN, the comparison it
+   is being measured against is weaker than the published framing suggests, and
+   the write-up should say so.
+
 Paper block 1. Sweep R in {4,8,16,32} on the hybrid arm, **100k steps** (to
 match exp03/DR for cross-block comparability), 3 seeds (coverage). Paper (PPO): OR helps hybrid, not classical -> genuine quantum
 interaction. Question: does that transfer to DQN?

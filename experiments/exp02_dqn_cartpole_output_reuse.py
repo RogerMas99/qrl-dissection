@@ -33,7 +33,11 @@ import sys
 
 import qrl_dissection
 from qrl_dissection import analysis
-from qrl_dissection.core.configs import OR_REPEATS, hybrid_or_config
+from qrl_dissection.core.configs import (
+    OR_REPEATS,
+    hybrid_or_config,
+    paper_classical_or_config,
+)
 from qrl_dissection.dqn import GreedyEvalConfig, RunSpec, SafeDQN
 from qrl_dissection.dqn.runner import claim_cell, release_cell, reuse_or_none
 
@@ -78,6 +82,9 @@ def main() -> int:
     p.add_argument("--seeds", nargs="+", type=int, default=[1, 2, 3])
     p.add_argument("--steps", type=int, default=100_000)  # match DR (exp03)
     p.add_argument("--fix-autoreset", action="store_true", default=True)
+    p.add_argument("--no-classical", action="store_true",
+                   help="hybrid arm only. The classical control is what makes "
+                        "the OR claim testable, so skip it only deliberately.")
     p.add_argument("--smoke", action="store_true", help="1 seed, R in {4,16} only")
     args = p.parse_args()
     CLAIM[0] = args.claim
@@ -100,6 +107,25 @@ def main() -> int:
         for seed in args.seeds:
             name = f"hybrid_OR{R}__s{seed}"
             run_one(outdir, name, "hybrid", cfg, seed, args.fix_autoreset, args.steps, kw)
+
+    # THE CONTROL. Without it this experiment cannot test the claim it exists to
+    # test. The paper's finding is not "OR helps" but "OR helps hybrid agents and
+    # not classical ones" - a statement about the DIFFERENCE between two arms. A
+    # hybrid-only sweep can show OR helping and still say nothing about whether
+    # the help is quantum, because a classical net given the same repeated
+    # observation may improve just as much. exp01 was nearly written up with a
+    # broken control; this is the same lesson on the other axis.
+    #
+    # Cheap: these are 26-194 parameter classical nets with no PQC, so a cell is
+    # minutes against hours for its hybrid counterpart. Config transcribed from
+    # post-pqc-inference.py :: config_classical.
+    if not args.no_classical:
+        for R in args.repeats:
+            cfg = paper_classical_or_config(R)
+            for seed in args.seeds:
+                name = f"classical_OR{R}__s{seed}"
+                run_one(outdir, name, "classic", cfg, seed, args.fix_autoreset,
+                        args.steps, kw)
 
     print("\n=== summary (greedy_best by R) ===")
     try:
