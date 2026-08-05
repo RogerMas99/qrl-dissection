@@ -130,6 +130,32 @@ you recompute the metric without retraining, which matters because the FIX-07
 amendment suggests the interesting statistic there may be steps-to-threshold
 rather than best return. That is a re-read of files you already have.
 
+## Sizing a session when one cell runs for hours
+
+`--budget-minutes` is a wall clock checked **between** cells, never during one.
+That is deliberate: terminating a cell mid-training loses all of its compute,
+because the manifest is only written on completion. The consequence is that a
+session overshoots by up to one cell - fine when cells are minutes, useless when
+a cell is nine hours and the runtime disconnects at twelve.
+
+Use `--max-cells N` instead. It stops after N cells complete, deterministically,
+and skipped cells do not count against the allowance. `--plan` reports the median
+wall time per cell measured from the manifests already on this machine, so after
+one cell of each experiment you can size the rest honestly:
+
+```
+experiment   done  target  per cell  remaining  what
+exp03b          4       6       12s        24s  exp03 with ent=False ...
+estimated time remaining (measured on THIS machine): 24s
+```
+
+Do not trust a throughput figure quoted from someone else's hardware, including
+any in these documents. PQC simulation speed varies several-fold between a Colab
+CPU runtime, a GPU runtime and a laptop, and it depends strongly on
+`train_frequency`, `n_qubits` and `learning_starts` - a short probe that never
+reaches `learning_starts` measures the environment loop and no gradient steps at
+all, which overstates throughput badly.
+
 ## Practical consequences
 
 - **Changing hyper-parameters means a new directory or a new tag.** The guard

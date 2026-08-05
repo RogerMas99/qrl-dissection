@@ -9,12 +9,24 @@ Run the whole DQN suite. One entry point, resumable, budgeted.
 
 DESIGN NOTES, because they are the difference between "runs" and "runs many times"
 ----------------------------------------------------------------------------------
-**`--budget-minutes` bounds one invocation, not the work.** It is a wall clock,
-checked between cells: when the deadline has passed the suite lets the running
-cell finish, writes its manifest, and stops. Rerun the same command - in the same
-session or a week later - and it carries on. This exists because Colab
-disconnects, laptops close, and a 10-seed pass is measured in hours; without it
-you would either babysit the session or lose a half-trained cell to a timeout.
+**Two ways to bound a session, and the difference matters.**
+
+`--budget-minutes` is a wall clock checked BETWEEN cells. When the deadline has
+passed the suite lets the running cell finish, writes its manifest and stops.
+It cannot preempt a cell in progress: killing one halfway loses its compute
+entirely, since no manifest is written and the next session restarts it from
+zero. So a session can overshoot by up to the length of one cell.
+
+That makes it the wrong tool when a single cell is long. An 8-qubit hybrid at
+100k steps can run for hours, and `--budget-minutes 180` on a 10-hour cell will
+simply run for 10 hours - or, more likely, get killed by the runtime disconnect
+and lose all of it.
+
+`--max-cells N` is the control for that case: stop after N cells complete,
+deterministically. Combine it with `--plan`, which reports the median wall time
+per cell measured from the manifests already on this machine, so you can size a
+session honestly instead of guessing. `--seeds 4 5` does the same thing from the
+other direction: fewer cells per invocation.
 
 **Resumability is at cell granularity.** Every experiment writes one manifest per
 cell and skips finished cells. Interrupt at any point, rerun the same command,
@@ -135,21 +147,74 @@ def count_cells(outdir: pathlib.Path) -> int:
     return len(list(outdir.glob("*.manifest.json"))) if outdir.exists() else 0
 
 
+def cell_seconds(outdir: pathlib.Path):
+    """Median wall time of the completed cells here, or None.
+
+    Measured on the machine that will run the rest, which is the only estimate
+    worth having: PQC throughput varies several-fold between a Colab CPU, a
+    Colab GPU runtime and a laptop.
+    """
+    times = []
+    for mp in (outdir.glob("*.manifest.json") if outdir.exists() else []):
+        try:
+            w = json.loads(mp.read_text()).get("outcome", {}).get("wall_seconds")
+            if w:
+                times.append(float(w))
+        except Exception:
+            pass
+    if not times:
+        return None
+    times.sort()
+    return times[len(times) // 2]
+
+
+def _hms(seconds: float) -> str:
+    if seconds < 90:
+        return f"{seconds:.0f}s"
+    if seconds < 5400:
+        return f"{seconds/60:.0f}m"
+    return f"{seconds/3600:.1f}h"
+
+
 def plan(outroot: pathlib.Path, seeds: List[int], only: List[str]) -> None:
-    print(f"\n{'experiment':10s} {'done':>6s} {'target':>7s}  {'env':24s} what")
+    print(f"\n{'experiment':10s} {'done':>6s} {'target':>7s} {'per cell':>9s} "
+          f"{'remaining':>10s}  what")
     print("-" * 100)
+    total_left = 0.0
+    unknown = []
     for key in only:
-        s = SUITE[key]
-        d = outroot / s["outdir"]
-        target = s["cells_per_seed"] * len(seeds)
-        print(f"{key:10s} {count_cells(d):6d} {target:7d}  {s['env']:24s} {s['what']}")
+        spec = SUITE[key]
+        d = outroot / spec["outdir"]
+        done = count_cells(d)
+        target = spec["cells_per_seed"] * len(seeds)
+        per = cell_seconds(d)
+        left = max(0, target - done)
+        if per:
+            total_left += per * left
+            est = _hms(per * left)
+        else:
+            unknown.append(key)
+            est = "?"
+        print(f"{key:10s} {done:6d} {target:7d} {(_hms(per) if per else '?'):>9s} "
+              f"{est:>10s}  {spec['what']}")
+
     print(f"\nseeds: {seeds}    outroot: {outroot}")
+    if total_left:
+        print(f"estimated time remaining (measured on THIS machine): {_hms(total_left)}")
+    if unknown:
+        print(f"no timing yet for: {', '.join(unknown)} - run one cell to calibrate")
     print("Counts are per-experiment manifests; exp04 and exp04b share a directory.")
+    print("\nIf a single cell is longer than a session you can hold open, size the"
+          "\nsession in CELLS rather than minutes: --max-cells 2, or --seeds 4 5.")
 
 
 def run(key: str, outroot: pathlib.Path, seeds: List[int], steps: int | None,
-        deadline: float | None) -> bool:
-    """Returns False if the budget ran out before the experiment finished."""
+        deadline: float | None, budget) -> bool:
+    """Returns False if a budget ran out before the experiment finished.
+
+    `budget` is a one-element list holding the remaining cell allowance, mutated
+    as cells complete so the count carries across experiments.
+    """
     s = SUITE[key]
     cmd = [sys.executable, str(REPO / "experiments" / s["script"]),
            "--outdir", str(outroot / s["outdir"]),
@@ -184,6 +249,13 @@ def run(key: str, outroot: pathlib.Path, seeds: List[int], steps: int | None,
                 over_budget = True
                 print("[budget] deadline passed - will stop once this cell finishes.",
                       flush=True)
+            if cell_finished and budget[0] is not None and not stripped.startswith("[skip]"):
+                budget[0] -= 1
+                if budget[0] <= 0:
+                    print("[budget] cell allowance used up. Rerun to continue.",
+                          flush=True)
+                    proc.terminate()
+                    return False
             if over_budget and cell_finished:
                 print("[budget] stopping here. Rerun the same command to continue.",
                       flush=True)
@@ -204,6 +276,10 @@ def main() -> int:
     p.add_argument("--only", nargs="+", choices=list(SUITE), default=list(SUITE))
     p.add_argument("--steps", type=int, default=None,
                    help="override the per-experiment default budget")
+    p.add_argument("--max-cells", type=int, default=None,
+                   help="stop after N cells complete. Deterministic, unlike "
+                        "--budget-minutes, and the right control when one cell "
+                        "is longer than a session.")
     p.add_argument("--budget-minutes", type=float, default=None,
                    help="wall-clock bound for THIS invocation. Checked between "
                         "cells, so a session can overshoot by up to one cell "
@@ -230,9 +306,10 @@ def main() -> int:
         return 1
 
     deadline = time.time() + args.budget_minutes * 60 if args.budget_minutes else None
+    budget = [args.max_cells]
     t0 = time.time()
     for key in order:
-        if not run(key, outroot, seeds, args.steps, deadline):
+        if not run(key, outroot, seeds, args.steps, deadline, budget):
             break
 
     print("\n" + "=" * 68)
