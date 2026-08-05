@@ -30,19 +30,24 @@ import qrl_dissection
 from qrl_dissection import analysis
 from qrl_dissection.core.configs import DR_DEPTHS, hybrid_dr_config
 from qrl_dissection.dqn import GreedyEvalConfig, SafeDQN
+from qrl_dissection.dqn.runner import reuse_or_none
 
 
 def run_one(outdir, name, cfg, seed, fix_autoreset, steps, kw):
     manifest = outdir / f"{name}.manifest.json"
-    if manifest.exists():
+    # A same-named manifest is only a hit if it answers the same question. See
+    # runner.reuse_or_none: a 5k smoke cell used to satisfy a 100k request.
+    hit = reuse_or_none(manifest, {"seed": seed, "total_timesteps": steps,
+                                   "dqn_kwargs": kw})
+    if hit is not None:
         print(f"[skip] {name}")
-        return json.loads(manifest.read_text())
+        return hit
     print(f"[run ] {name}", flush=True)
     runner = SafeDQN(agent_type="hybrid", agent_config=cfg, run_name=name,
                      seed=seed, fix_autoreset=fix_autoreset,
                      eval_cfg=GreedyEvalConfig(every_steps=10_000), outdir=outdir, **kw)
     out = runner.train(steps, progress_bar=False)
-    m = {"name": name, "seed": seed, "fix_autoreset": fix_autoreset,
+    m = {"name": name, "seed": seed, "total_timesteps": steps, "dqn_kwargs": kw, "fix_autoreset": fix_autoreset,
          "outcome": out.__dict__, "config": {k: str(v) for k, v in cfg.items()}}
     manifest.write_text(json.dumps(m, indent=2, default=str))
     print(f"       ok {out.wall_seconds}s  phantoms {100*out.probe['frac_poison']:.2f}%")
@@ -55,7 +60,7 @@ def main() -> int:
     p.add_argument("--outdir", default="results/exp03_dqn_cartpole_data_reuploading")
     p.add_argument("--depths", nargs="+", type=int, default=DR_DEPTHS)
     p.add_argument("--seeds", nargs="+", type=int, default=[1, 2, 3])
-    p.add_argument("--steps", type=int, default=60_000)
+    p.add_argument("--steps", type=int, default=100_000)  # DR needs more budget; matches exp02
     p.add_argument("--fix-autoreset", action="store_true", default=True)
     p.add_argument("--smoke", action="store_true", help="1 seed, L in {1,5}")
     args = p.parse_args()
@@ -64,7 +69,13 @@ def main() -> int:
     if args.smoke:
         args.seeds, args.depths = [1], [1, 5]
 
-    outdir = pathlib.Path(args.outdir)
+    # Smoke runs go to their own directory. They use short budgets, so
+
+    # sharing a directory with the real pass would leave stale cells that
+
+    # the reuse guard then (correctly) refuses to accept.  _smoke_outdir
+
+    outdir = pathlib.Path(args.outdir) / "_smoke" if args.smoke else pathlib.Path(args.outdir)
     kw = dict(batch_size=128, buffer_size=10_000, train_frequency=10)
 
     for L in args.depths:

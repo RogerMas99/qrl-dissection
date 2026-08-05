@@ -24,4 +24,4 @@ pandas
 # The library under study, pinned by revision for reproducibility.
 # Audited revision b534cc9 (upstream HEAD 2025-10-31). Bump this only after
 # re-checking the guards in src/qrldqn/compat.py against the new revision.
-simplyqrl @ git+https://github.com/javier-lazaro/SimplyQRL.git@b534cc9
+# simplyqrl is vendored at src/simplyqrl (b534cc9) - see src/simplyqrl/VENDORED.md

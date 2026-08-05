@@ -35,13 +35,18 @@ import qrl_dissection
 from qrl_dissection import analysis
 from qrl_dissection.core.configs import OR_REPEATS, hybrid_or_config
 from qrl_dissection.dqn import GreedyEvalConfig, RunSpec, SafeDQN
+from qrl_dissection.dqn.runner import reuse_or_none
 
 
 def run_one(outdir, name, agent_type, cfg, seed, fix_autoreset, steps, kw):
     manifest = outdir / f"{name}.manifest.json"
-    if manifest.exists():
+    # A same-named manifest is only a hit if it answers the same question. See
+    # runner.reuse_or_none: a 5k smoke cell used to satisfy a 100k request.
+    hit = reuse_or_none(manifest, {"seed": seed, "total_timesteps": steps,
+                                   "dqn_kwargs": kw})
+    if hit is not None:
         print(f"[skip] {name}")
-        return json.loads(manifest.read_text())
+        return hit
     print(f"[run ] {name}", flush=True)
     runner = SafeDQN(agent_type=agent_type, agent_config=cfg, run_name=name,
                      seed=seed, fix_autoreset=fix_autoreset,
@@ -61,7 +66,7 @@ def main() -> int:
     p.add_argument("--outdir", default="results/exp02_dqn_cartpole_output_reuse")
     p.add_argument("--repeats", nargs="+", type=int, default=OR_REPEATS)
     p.add_argument("--seeds", nargs="+", type=int, default=[1, 2, 3])
-    p.add_argument("--steps", type=int, default=60_000)
+    p.add_argument("--steps", type=int, default=100_000)  # match DR (exp03)
     p.add_argument("--fix-autoreset", action="store_true", default=True)
     p.add_argument("--smoke", action="store_true", help="1 seed, R in {4,16} only")
     args = p.parse_args()
@@ -70,7 +75,13 @@ def main() -> int:
     if args.smoke:
         args.seeds, args.repeats = [1], [4, 16]
 
-    outdir = pathlib.Path(args.outdir)
+    # Smoke runs go to their own directory. They use short budgets, so
+
+    # sharing a directory with the real pass would leave stale cells that
+
+    # the reuse guard then (correctly) refuses to accept.  _smoke_outdir
+
+    outdir = pathlib.Path(args.outdir) / "_smoke" if args.smoke else pathlib.Path(args.outdir)
     kw = dict(batch_size=128, buffer_size=10_000, train_frequency=10)
 
     for R in args.repeats:

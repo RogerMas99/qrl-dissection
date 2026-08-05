@@ -52,6 +52,88 @@ class RunSpec:
         return f"{base}__{self.tag}" if self.tag else base
 
 
+
+# Fields that make two runs the same run. If any of these differ, an existing
+# manifest is NOT an answer to the question being asked, and reusing it silently
+# would report a 1,500-step smoke run as a 100,000-step result - which is exactly
+# what happened before this guard existed.
+REUSE_KEYS = ("arm", "seed", "fix_autoreset", "total_timesteps", "dqn_kwargs", "tag")
+
+
+def reuse_or_none(manifest_path, expected, env_id=None, on_mismatch="error"):
+    """Return an existing manifest only if it answers the same question.
+
+    `run_name` deliberately encodes only arm, FIX-01 state, seed and tag - it is
+    meant to be readable. That makes it an incomplete key: two runs with the same
+    name can differ in step budget, batch size, buffer size or environment. This
+    function closes that gap by comparing the stored spec against the requested
+    one before agreeing to skip.
+
+    on_mismatch:
+        "error"  raise, naming the fields that differ (default - loud beats wrong)
+        "rerun"  ignore the stale manifest and recompute
+        "legacy" accept manifests that simply predate a field, but still refuse
+                 ones that actively contradict the request
+        "skip"   reuse anyway; only for deliberate archaeology
+    """
+    manifest_path = pathlib.Path(manifest_path)
+    if not manifest_path.exists():
+        return None
+    stored = json.loads(manifest_path.read_text())
+    stored_spec = stored.get("spec", stored)
+
+    outcome = stored.get("outcome", {})
+    diffs, unverifiable = [], []
+    for key in REUSE_KEYS:
+        if key not in expected:
+            continue
+        if key in stored_spec:
+            found = stored_spec[key]
+        elif key == "total_timesteps" and "total_timesteps" in outcome:
+            # Manifests written before the spec was recorded in full still carry
+            # the step budget inside the outcome, so this one is recoverable.
+            found = outcome["total_timesteps"]
+        else:
+            unverifiable.append(key)
+            continue
+        if found != expected[key]:
+            diffs.append(f"    {key}: on disk {found!r} != requested {expected[key]!r}")
+    if env_id is not None and stored.get("env_id") not in (None, env_id):
+        diffs.append(f"    env_id: on disk {stored.get('env_id')!r} != requested {env_id!r}")
+
+    if diffs:
+        if on_mismatch == "skip":
+            return stored
+        if on_mismatch == "rerun":
+            return None
+        raise RuntimeError(
+            f"{manifest_path.name} exists but was produced by a different run:\n"
+            + "\n".join(diffs)
+            + "\n  Reusing it would report one experiment's numbers as another's."
+            "\n  Fix by one of: delete that manifest, write to a different --outdir,"
+            "\n  give the run a distinct tag, or pass force=True to recompute."
+        )
+
+    if unverifiable:
+        # A LEGACY manifest: written before these fields were recorded. Absence is
+        # not evidence of a mismatch, so refusing outright would throw away real
+        # compute - but accepting silently is how FIX-08 happened. Say so, once.
+        if on_mismatch in ("skip", "legacy"):
+            return stored
+        if on_mismatch == "rerun":
+            return None
+        raise RuntimeError(
+            f"{manifest_path.name} is a LEGACY manifest: it does not record "
+            f"{', '.join(unverifiable)}, so it cannot be checked against this "
+            "request.\n  The run may be perfectly good - older experiment scripts "
+            "simply did not write those fields.\n  Back-fill it once and this stops:"
+            "\n      python scripts/migrate_manifests.py <results-dir> --dqn-kwargs '{...}'"
+            "\n  Or pass on_mismatch='legacy' to accept legacy manifests as-is."
+        )
+
+    return stored
+
+
 def run_arm(
     spec: RunSpec,
     outdir: pathlib.Path,
@@ -59,14 +141,20 @@ def run_arm(
     eval_cfg: Optional[GreedyEvalConfig] = None,
     progress_bar: bool = False,
     force: bool = False,
+    on_mismatch: str = "error",
 ) -> Dict[str, Any]:
-    """Execute one cell, or return the existing manifest if already done."""
+    """Execute one cell, or return the existing manifest if it answers the same
+    question. A manifest with the same name but a different spec is a mismatch,
+    not a hit - see `reuse_or_none`."""
     outdir = pathlib.Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     manifest_path = outdir / f"{spec.run_name}.manifest.json"
 
-    if manifest_path.exists() and not force:
-        return json.loads(manifest_path.read_text())
+    if not force:
+        hit = reuse_or_none(manifest_path, asdict(spec), env_id=env_id,
+                            on_mismatch=on_mismatch)
+        if hit is not None:
+            return hit
 
     agent_type, agent_config = build_arm_config(spec.arm, env_id=env_id)
 

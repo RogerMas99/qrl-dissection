@@ -24,6 +24,8 @@ Correction / addition registry: docs/CORRECTIONS.md
     FIX-02  OutputScale no-op in the is_qnet branch   -> core/compat.py
     FIX-03  agent_type="classic" unresolvable         -> core/compat.py
     FIX-04  broken dependency pins / jax in Colab      -> scripts/verify_env.py
+    FIX-05  Discrete observation spaces unusable (DQN) -> core/obs_adapters.py
+    FIX-06  chapter's transformer signature (doc only) -> core/configs.py
     NEW-01  autoreset instrumentation                  -> dqn/safe.py
     NEW-02  capacity-matched classical control arm     -> core/capacity.py
     NEW-03  greedy evaluation hook                      -> dqn/safe.py
@@ -42,10 +44,12 @@ apply_upstream_patches()
 from .core import analysis  # noqa: E402
 from .core.capacity import capacity_ladder, count_trainable, match_hidden_width  # noqa: E402
 from .core.configs import ARMS, build_arm_config  # noqa: E402
+from .core.obs_adapters import FROZEN_ONEHOT_ID, FROZEN_SCALAR_ID, register_environments  # noqa: E402
 
 __all__ = [
     "analysis",
     "ARMS", "build_arm_config",
+    "register_environments", "FROZEN_SCALAR_ID", "FROZEN_ONEHOT_ID",
     "capacity_ladder", "count_trainable", "match_hidden_width",
     "upstream_report",
 ]

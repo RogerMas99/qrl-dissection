@@ -32,6 +32,10 @@ src/qrl_dissection/
         compat.py       FIX-02, FIX-03 - guarded patches to SimplyQRL
         capacity.py     NEW-02 - parameter accounting and capacity matching
         configs.py      experiment ARMS and ENVIRONMENTS registries
+        obs_adapters.py FIX-05 - observation adapters for Discrete spaces
+        baselines.py    the paper's own 10-seed PPO results, for comparison
+    data/               the paper's 360 logged runs: summaries and curves
+    src/simplyqrl/      VENDORED upstream b534cc9, unmodified (see VENDORED.md)
         analysis.py     loading, summary tables, learning-curve plots
     dqn/           off-policy specifics
         safe.py         FIX-01 + NEW-01 (autoreset probe) + NEW-03 (greedy eval)
@@ -57,6 +61,10 @@ pulls in off-policy machinery.
 | FIX-02 | `OutputScale` never reaches the model | No - DQN branch only; softmax is scale-invariant |
 | FIX-03 | `agent_type="classic"` is unresolvable | Their experiment script 2 does not run as published |
 | FIX-04 | Dependency pins do not import | The published artefact cannot be installed as specified |
+| FIX-05 | `Discrete` observation spaces unusable under DQN | No - the chapter's FrozenLake run is PPO |
+| FIX-06 | Chapter's transformer signature does not run as printed | Documentation only |
+| FIX-07 | `ent` is a no-op at depth 1 on the `skolik` template | YES - one published contrast is vacuous |
+| FIX-08 | a shorter finished run silently satisfied a longer request | ours, not upstream's |
 
 Full evidence and scope in [`docs/CORRECTIONS.md`](docs/CORRECTIONS.md).
 
@@ -75,6 +83,10 @@ python experiments/exp01_dqn_cartpole_capacity.py --ladder-only
 
 # The classical grid: 3 arms x FIX-01 on/off x 3 seeds.
 python experiments/exp01_dqn_cartpole_capacity.py --outdir results/exp01
+
+# Second environment (exp04, FrozenLake). Accounting and baseline first.
+python experiments/exp04_dqn_frozenlake_embeddings.py --ladder-only
+python experiments/exp04_dqn_frozenlake_embeddings.py --stage 1 --smoke
 ```
 
 On Colab, open `notebooks/01_dqn_runner.ipynb` from the GitHub tab (do not upload
@@ -93,12 +105,70 @@ A random policy on CartPole-v1 returns ~22. A run at ~9.5 is not "failing to
 learn": it is learning a degenerate constant-action policy - a different
 diagnosis.
 
+On FrozenLake the episodic return is a single bit, so a rolling mean **is** the
+success rate. Use a 100-episode window there rather than 50 - on a binary signal
+the shorter window is noisy - and note that `summarise_run`'s `mean_ep_len` field
+is `rewards.mean()`, which equals episode length on CartPole but equals the
+success rate on FrozenLake. A random policy reaches the goal 1.5% of the time.
+
+## Running it
+
+```bash
+python scripts/run_dqn_suite.py --plan                 # status of every grid
+python scripts/run_dqn_suite.py --pass coverage        # 3 seeds, everything
+python scripts/run_dqn_suite.py --pass robustness      # 10 seeds - the real numbers
+python scripts/run_dqn_suite.py --only exp03 exp03b    # the pair that matters most
+```
+
+Resumable at cell granularity: interrupt whenever, rerun the same command, and
+only missing cells are computed - and a cell is only reused if its stored spec
+matches what you asked for (FIX-08). `--budget-minutes` bounds a session safely.
+What is and is not reusable: `docs/REUSE.md`. To see what a results folder
+already contains before adding to it:
+
+```bash
+python scripts/inventory_results.py /content/drive/MyDrive/tfm_qrl -v
+``` In
+Colab, use `notebooks/10_dqn_suite_runner.ipynb` and then
+`notebooks/20_dqn_results.ipynb`; see `notebooks/README.md`.
+
+Stack choice, and why upgrading gymnasium does not remove FIX-01:
+`docs/ENVIRONMENTS.md`.
+
+## Relationship to the paper's own repository
+
+SimplyQRL is vendored here at `src/simplyqrl/`, byte-identical to upstream
+`b534cc9` and to the copy the paper's companion repository ships - so the two
+artefacts can be diffed directly. It is never edited; corrections live in
+`qrl_dissection/` and are applied at runtime. `tests/test_vendored_integrity.py`
+enforces that.
+
+`data/` holds their 360 logged runs (3 blocks, 36 configurations, 10 seeds),
+extracted from 140 MB of TensorBoard events into 430 KB of CSV, including full
+learning curves. `core/baselines.py` reads them, so every "the paper reports X"
+statement can now cite logged returns with standard deviations instead of a
+number read off a figure.
+
+A full structural comparison, including the one place where our configuration
+diverges from theirs and what that does and does not invalidate, is in
+`docs/COMPARISON-WITH-PAPER-REPO.md`.
+
 ## Status
 
-Experiment 01 (DQN, CartPole, capacity-matched control) specified and
-implemented; results pending. Corrections verified against pinned upstream
-revision b534cc9. Nothing has been executed end to end on target hardware yet -
-see the checklist at the end of `docs/EXPERIMENT-01.md`.
+Experiments 01 and 03 have coverage results (3 seeds); 02 is scripted. Experiment
+04 extends the study to a **second environment**, FrozenLake-v1, which required
+FIX-05 before it could run under DQN at all - see
+`notebooks/00_fix05_verification.ipynb` for the reproduction. Its stage-0
+accounting and baselines are measured and logged; stages 1 and 2 are pending.
+
+Note the two papers, because the distinction governs what each experiment can
+claim: the **dissection paper** (arXiv:2511.17112) is CartPole-only and PPO-only,
+while the **SimplyQRL library chapter** additionally demonstrates FrozenLake as a
+single-seed illustrative run with no controls. exp04 is therefore not a transfer
+test against a dissected baseline; see `docs/EXPERIMENT-04.md` section 0.
+
+No experiment has had its 8-10 seed robustness pass yet (plan B in
+`docs/ROADMAP.md`). exp04 is the first where that is affordable.
 
 ## Citation
 

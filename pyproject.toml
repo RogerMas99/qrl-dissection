@@ -10,7 +10,13 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 
-# Pins follow the upstream SimplyQRL lock of June 2025 - the environment that
+# SimplyQRL is VENDORED at src/simplyqrl (revision b534cc9), matching the choice
+# the paper's own companion repository makes and removing a git dependency that
+# could resolve differently over time. It is byte-identical to upstream and to
+# their copy; see src/simplyqrl/VENDORED.md. Corrections are never applied by
+# editing it - they live in qrl_dissection/ and are applied at runtime.
+#
+# The pins below follow the upstream June 2025 lock - the environment that
 # produced the published results - NOT the requirements.txt shipped with
 # qrl-dissection, which pins autoray 0.8.0 and cannot import PennyLane.
 # See docs/CORRECTIONS.md#fix-04
@@ -33,6 +39,7 @@ dev = ["pytest>=8", "ruff"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["qrl_dissection*", "simplyqrl*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

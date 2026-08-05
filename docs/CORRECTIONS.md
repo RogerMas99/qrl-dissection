@@ -15,6 +15,10 @@ paper's published results at all.
 | [FIX-02](#fix-02) | `OutputScale` never reaches the model | No - DQN branch only; softmax is scale-invariant |
 | [FIX-03](#fix-03) | `agent_type="classic"` is unresolvable | Their experiment script 2 does not run as published |
 | [FIX-04](#fix-04) | Dependency pins do not import | The published artefact cannot be installed as specified |
+| [FIX-05](#fix-05) | `Discrete` observation spaces unusable under DQN | No - the chapter's FrozenLake run is PPO |
+| [FIX-06](#fix-06) | Chapter's transformer signature does not run as printed | Documentation only |
+| [FIX-07](#fix-07) | `ent` is a no-op at depth 1 on the `skolik` template | YES - one published contrast is vacuous |
+| [FIX-08](#fix-08) | a shorter finished run silently satisfied a longer request | ours, not upstream's |
 
 ---
 
@@ -214,3 +218,236 @@ its peak even when healthy, so a tail statistic misreports runs that reached
 Manifest per run, skip-if-done on restart, results written outside the
 repository. Upstream flushes its episode CSV once per episode, so an interrupted
 run still leaves a usable partial learning curve.
+
+---
+
+## FIX-05
+
+**A `Discrete` observation space cannot be run by upstream's DQN at all.**
+
+Found while specifying exp04 (FrozenLake, the second environment). Affects
+FrozenLake, Taxi, CliffWalking and any other discrete-observation task. PPO is
+unaffected, which turns out to be the informative part.
+
+### Mechanism
+
+`gym.spaces.Discrete(n).shape` is `()`, not `(1,)`, and its dtype is `int64`.
+Upstream derives every tensor shape from that attribute, so three things go wrong
+at once.
+
+**1. Action selection raises.** `self.obs` from the single-env `SyncVectorEnv`
+has shape `(1,)`. `torch.Tensor(obs)` is therefore 1-D; `nn.Linear` reads it as
+one sample with one feature and returns a 1-D `q_values`; and
+`torch.argmax(q_values, dim=1)` raises `IndexError` on the first step.
+
+**2. The replay buffer allocates without a feature axis.** In
+`simplyqrl/buffers.py`:
+
+```python
+obs_shape = observation_space.shape
+self.obs_buf = np.zeros((buffer_size, *obs_shape), dtype=observation_space.dtype)
+```
+
+For `Discrete(16)` that is `(buffer_size,)`, `int64`. A sampled batch is `[B]`,
+one-dimensional and integer, where every downstream consumer expects `[B, 1]`
+float.
+
+**3. The consequence of (2) is silent, which is the dangerous part.** The
+built-in `FrozenNormalizationTransformer` and `FrozenBasisToAngleTransformer`
+branch on `data.dim() == 1` to handle a single observation. Given a `[B]` batch
+they take that branch and return **one sample's angles for the entire batch**.
+No exception. Separately, `FrozenNormalizationTransformer` does
+`transformed = data.clone()` and then writes a float into it; on an `int64`
+tensor that write truncates, quantising the encoding angle to whole radians.
+
+Verified, not inferred:
+
+```python
+>>> space = gym.make("FrozenLake-v1", map_name="4x4", is_slippery=False).observation_space
+>>> space.shape, space.dtype
+((), dtype('int64'))
+>>> np.zeros((1000, *space.shape), dtype=space.dtype).shape
+(1000,)                      # CartPole gives (1000, 4)
+```
+
+### Why PPO escapes it, and what that tells us
+
+`ppo.py` reshapes explicitly - `next_obs_np.reshape(self.num_envs, -1)` on
+collection, `self.obs.reshape(self.batch_size, -1)` on the update - and stores
+observations in a float tensor. Immediately above the second of those lines the
+CartPole-only version survives as a comment:
+
+```python
+#b_obs = self.obs.reshape((-1,) + self.envs.single_observation_space.shape)
+b_obs = self.obs.reshape(self.batch_size, -1)
+```
+
+That comment is the clearest available evidence for the reading FIX-01 already
+suggested: **the on-policy path was hardened when the library moved beyond
+CartPole, and the off-policy path was never re-validated.** FIX-01 and FIX-05 are
+two independent instances of the same history, in two different subsystems. The
+library chapter's own FrozenLake results (Fig. 6) are PPO and unaffected.
+
+A third fingerprint, for completeness: `dqn.py` hardcodes
+`test_obs = torch.randn(8, 4)` in its `verbose` diagnostic branch, which raises
+on any observation dimension other than 4. Not patched - it is diagnostic-only
+and `verbose=False` is our default - but cited here because three independent
+CartPole assumptions in the off-policy path is a pattern, not an accident.
+
+### Our fix
+
+`src/qrl_dissection/core/obs_adapters.py`. We do **not** patch upstream's buffer. We
+adapt the environment so it presents its observation in the form the rest of the
+stack already assumes: `Box(shape=(1,), dtype=float32)`, the state index
+unchanged in value. Three properties earn it the choice:
+
+- it reproduces PPO's effective representation exactly, so a future
+  cross-algorithm comparison sees the same thing on both sides;
+- `SafeDQN` does `gym.make(self.env_id)` and `run_arm`/`run_grid` take an
+  `env_id` string, so registering gym ids means **no runner code changes at all**;
+- it is testable in isolation, which a monkeypatch of upstream internals is not.
+
+Placement is `core/`, not `dqn/`. Only DQN currently needs it, but it is an
+environment concern and PPO can use it unharmed - and a thing that would be
+copied from `dqn/` to `ppo/` belonged in `core/` to begin with.
+
+Registered ids: `FrozenLake4x4Scalar-v0` (adapter) and `FrozenLake4x4OneHot-v0`
+(one-hot, for the classical reference arm). `max_episode_steps=100` is pinned
+explicitly rather than inherited, because truncation is where the FIX-01 phantom
+transition is generated and that boundary should be ours.
+
+### Scope and guard
+
+`tests/test_frozenlake_envs.py` pins the upstream bug as well as the fix: the
+`test_upstream_*` cases assert that raw FrozenLake still produces the malformed
+shape and dtype. If one of them ever fails, upstream has repaired the problem and
+`core/obs_adapters.py` may be removable. `notebooks/00_fix05_verification.ipynb`
+reproduces all three symptoms from scratch, standalone.
+
+---
+
+## FIX-06
+
+**The library chapter's transformer constructors do not run as printed.**
+
+Documentation only; no code defect.
+
+The SimplyQRL chapter's Experiment 3 lists the configurations as
+`transform_fn = FrozenNormalizationTransformer()` and
+`FrozenBasisToAngleTransformer()`, with no arguments. Both shipped classes
+require a `grid_size` string (e.g. `"4x4"`) to derive the state count and qubit
+count, and raise `TypeError` when called as printed. The repository's own
+`examples/frozenlake.py` uses the correct form.
+
+Recorded because a reader reproducing from the chapter text alone hits it
+immediately, and because it belongs in any correspondence with the authors.
+Note this concerns the *library chapter*, not the dissection paper - which never
+runs FrozenLake at all.
+
+---
+
+## FIX-07
+
+**On the `skolik` template the `ent` flag cannot affect the output at
+`n_layers_q = 1`, so one published entanglement contrast compares a circuit
+against itself.**
+
+Found while merging the paper's companion repository, which ships the raw
+TensorBoard logs behind every figure. `Skolik_DR_L1_Entangled` and
+`Skolik_DR_L1_Unentangled` carry *identical* returns on all ten seeds. The
+innocent explanation turned out to be the correct one, and it is more
+interesting than the alternative.
+
+### Mechanism
+
+`build_skolik_qlayer` closes **each** layer with a circular ring of CZ gates,
+and the circuit is then measured in the PauliZ basis:
+
+```python
+for layer in range(n_layers):
+    angle_embedding(...)                 # Rx
+    for i, wire in enumerate(range(n_qubits)):
+        qml.RY(weights[layer, 0, i], wires=wire)
+        qml.RZ(weights[layer, 1, i], wires=wire)
+    if ent == True:                      # <-- last thing in the layer
+        for i in range(n_qubits):
+            qml.CZ(wires=[i, (i + 1) % n_qubits])
+return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
+```
+
+CZ is diagonal in the computational basis, and diagonal unitaries commute with
+Z. The entangling ring of the **final** layer therefore cannot change any
+`<Z_i>`. At depth 1 that is the only ring, and `ent` is a complete no-op.
+
+Verified by construction, not argued (`tests/test_entanglement_noop.py`):
+
+```
+n_layers= 1  max |ent - unent| = 0.000e+00   IDENTICAL
+n_layers= 2  max |ent - unent| = 3.426e-01   differs
+n_layers= 5  max |ent - unent| = 1.412e+00   differs
+```
+
+Scope is narrow and deliberately checked: the **Hsiao** template is unaffected
+and its ablation is valid at every depth, so the paper's Hsiao entanglement
+result stands. The Salinas/UQC rows at one qubit cannot entangle for the obvious
+reason, which the authors' own comments already note.
+
+### Consequences
+
+**1. One published cell is vacuous.** The `Skolik_DR_L1` entangled/unentangled
+comparison is between identical circuits. Their logged returns coincide on all
+ten seeds because they *must*. This is an experimental-design artefact and
+explicitly **not** duplicated data - a distinction worth stating plainly, since
+identical numbers across ten seeds invite the harsher reading.
+
+**2. Depth L carries only L-1 effective entangling blocks.** "Five layers of
+entanglement" is four. Any Skolik depth sweep with `ent=True` therefore varies
+entanglement and data reuploading together.
+
+**3. It touches our own exp03.** That sweep runs `hybrid_dr_config` over
+L = 1, 2, 5 on the Skolik template with `ent=True`, so its depth axis carries
+0, 1 and 4 effective entangling blocks. The monotone result (greedy 15 -> 35 ->
+199) is therefore **confounded**: part of the gain may be entanglement coming
+online rather than depth. The separation is cheap - rerun the same sweep with
+`ent=False` - and is now a named follow-up in docs/ROADMAP.md.
+
+### Not a fix, a caveat
+
+Nothing is patched. The circuit is a faithful implementation of the published
+template; the issue is what a sweep over it means. Recorded here because this
+registry exists for anything that changes how a published number should be read.
+
+---
+
+## FIX-08
+
+**Our own bug, not upstream's. A finished cell was reused whenever a file with
+the same name existed, regardless of whether it answered the same question.**
+
+`run_name` is `arm__fix01{on,off}__s{seed}[__tag]` - readable, and an incomplete
+key. It encodes neither the step budget nor `dqn_kwargs` nor the environment. The
+skip logic was `if manifest.exists(): return it`, so a 1,500-step smoke cell
+satisfied a 100,000-step request, with a different batch size and buffer size,
+and reported the smoke numbers as the production result. Nothing was printed.
+
+Reproduced before fixing:
+
+```
+run 1 name: oversized_mlp__fix01on__s1 | steps asked: 1500
+run 2 name: oversized_mlp__fix01on__s1 | steps asked: 100000
+>>> manifest on disk says total_timesteps = 1500 and batch_size = 32
+```
+
+This is the worst failure mode available to this project - not a crash, but a
+plausible number attached to the wrong experiment, in the one mechanism the whole
+suite relies on to be cheap.
+
+**Fix:** `dqn/runner.py :: reuse_or_none` compares the stored spec against the
+requested one across `arm`, `seed`, `fix_autoreset`, `total_timesteps`,
+`dqn_kwargs`, `tag` and `env_id`. A mismatch raises and names the offending
+fields. `--smoke` writes to `<outdir>/_smoke` so the ordinary workflow does not
+trip it. Pinned by `tests/test_reuse_guard.py`, including the symmetric case: a
+longer finished run does not satisfy a shorter request either, since every metric
+here is computed over the whole trace.
+
+Full account of what is and is not reusable: `docs/REUSE.md`.

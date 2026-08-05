@@ -4,6 +4,54 @@ The study grows along two axes: **RL algorithm** and **environment**. This file
 tracks the grid so a glance shows what is covered and what is next. Update it
 when an experiment lands.
 
+## !! STANDING NOTE - environment versions (reproduce vs innovate)
+
+The pinned June-2025 stack (gymnasium 1.1.1, pennylane 0.41.1, autoray 0.7.1,
+simplyqrl@b534cc9) is deliberate and MUST stay fixed for the entire
+reproduce-and-extend phase (exp01, exp02, exp03). Reason: a comparison is only
+valid if both sides share the environment. While we compare against the paper's
+PPO results or across our own DQN arms, we share the paper's environment.
+
+Do NOT "upgrade to the newest versions because newer is better" during this
+phase. Newer is not the same as compatible - autoray 0.8.0, jax 0.6.0 and
+gymnasium 1.0 each REMOVED or CHANGED something the code depends on (that is
+where FIX-01..04 come from).
+
+**When to modernise (a later, deliberate step).** When the work shifts from
+reproducing the paper to a genuinely new method or environment, and we are no
+longer comparing against their numbers: create a fresh branch, move to the modern
+stack, and re-verify the baseline from scratch before building on it. That is a
+controlled jump with its own before/after evidence, not a drift.
+
+Crucial nuance: modernising fixes the easy dependency bugs (FIX-04, jax, autoray)
+but NOT FIX-01. The autoreset NEXT_STEP behaviour is an intentional gymnasium
+design change - newer gymnasium entrenches it. Only the code adapting to it fixes
+it, so the scientifically interesting bug survives any upgrade.
+
+## !! OPEN - does FrozenLake trigger the modernisation branch?
+
+**Confirm this explicitly; do not inherit it from a document.** The note above
+says the moment to branch and modernise is when the work stops comparing against
+the paper's numbers. FrozenLake sits between the two cases and an honest reading
+has to say so: it is a new environment for the *dissection*, so on the letter of
+the rule it counts - but it is one the library itself ships and demonstrates, so
+there is a published curve to sanity-check against.
+
+Current recommendation: **keep the pinned stack**, on a ground that has nothing
+to do with which paper FrozenLake appears in. exp04's headline (H3) is a
+*cross-experiment* comparison - FIX-01's effect on FrozenLake against exp01's
+null on CartPole - and that is valid only if both sides share the stack. Changing
+gymnasium between them would make the central claim unfalsifiable. Upgrading
+would not help anyway: the autoreset behaviour is an intentional gymnasium design
+decision that newer versions entrench.
+
+Acrobot and LunarLander have no such tether. They remain the right place for the
+branch, and the reasons to defer them are, in order of weight: neither appears in
+either paper, so there is nothing to transfer and the question degrades to "does
+this agent work here?"; they trigger the commitment cleanly, with none of
+FrozenLake's ambiguity; and no experiment in this repo has had its robustness
+pass yet, so a third environment before then buys width at the cost of depth.
+
 ## !! STANDING COMMITMENT - robustness pass (plan "B")
 
 **Every block sweep in this repo is currently a COVERAGE pass at 3 seeds.** This
@@ -29,29 +77,59 @@ change of algorithm.
   to cross-check against published numbers. Scaffolded in `src/qrl_dissection/ppo/`.
 - `sac` / others - not planned yet.
 
-**Environment.** The paper is CartPole-only. Higher-dimensional observation
-spaces are where scalability and the barren-plateau story get interesting.
+**Environment.** The dissection paper (arXiv:2511.17112) is **CartPole-only**.
+The SimplyQRL library chapter additionally demonstrates FrozenLake, but as a
+single-seed illustrative run with no controls and no block-level conclusion - so
+there is no dissected FrozenLake result to transfer from. Keep the two papers
+apart when writing up; it changes what each experiment can claim.
 
-- `cartpole`    - registered, in use.
-- `acrobot`     - candidate. Register in `core/configs.py :: ENVIRONMENTS`.
-- `lunarlander` - candidate. Larger observation space; good stress test for DR
-  width vs depth.
+- `cartpole`    - registered, in use (exp01/02/03). The dissection paper's only
+  environment, and the anchor for every transfer claim.
+- `frozenlake`  - registered, in use (exp04). 4x4 non-slippery, via the adapted
+  ids `FrozenLake4x4Scalar-v0` / `FrozenLake4x4OneHot-v0`. NOT in the dissection
+  paper. Its purposes are (a) testing whether exp03's DR result generalises
+  beyond one environment and (b) providing the first regime in which FIX-01 is
+  measurable - the phantom fraction ~ 1/mean_episode_length does not shrink as
+  the agent improves. MEASURED: 8.6-9.9% here against < 1% on CartPole at
+  convergence. Required FIX-05 before it could run under DQN at all.
+- `acrobot`     - candidate, DEFERRED. In neither paper.
+- `lunarlander` - candidate, deferred for the same reason.
 
 ## Coverage grid
 
 By block x algorithm x environment. "cov" = 3-seed coverage done; "rob" = 8-10
 seed robustness pass done (plan B); "-" = not started.
 
-| block (dqn, cartpole) | coverage | robustness (B) |
-|---|---|---|
-| 3 - ansatz/entanglement (exp01) | done (v2, fair control) | pending |
-| 1 - Output Reuse (exp02) | scripted | pending |
-| 2 - Data Reuploading (exp03) | scripted | pending |
-
-| algorithm x env | cartpole | acrobot | lunarlander |
+| block | algorithm x env | coverage | robustness (B) |
 |---|---|---|---|
-| **dqn** | exp01/02/03 in progress | - | - |
-| **ppo** | cross-check vs paper - planned | - | - |
+| 3 - ansatz/entanglement (exp01) | dqn x cartpole | done (v2, fair control) | pending |
+| 1 - Output Reuse (exp02) | dqn x cartpole | scripted | pending |
+| 2 - Data Reuploading (exp03) | dqn x cartpole | done (100k, DR transfers) | pending |
+| 2 - embedding / DR (exp04) | dqn x frozenlake | specified | pending - AFFORDABLE (1-4 qubits) |
+
+| algorithm x env | cartpole | frozenlake | acrobot | lunarlander |
+|---|---|---|---|---|
+| **dqn** | exp01/02/03 in progress | exp04 specified | deferred | deferred |
+| **ppo** | dissection paper's own setting | chapter Exp 3, single seed | - | - |
+
+exp04 is the first experiment where the plan-B robustness pass is genuinely
+affordable: Config A is a one-qubit circuit and Config B four, against CartPole's
+eight. Measured throughput ~50 and ~25 steps/s on a CPU runtime.
+
+## Named follow-ups created by the merge
+
+- **exp03b - DR sweep with `ent=False`.** IMPLEMENTED:
+  `experiments/exp03b_dqn_cartpole_dr_unentangled.py`, and wired into
+  `scripts/run_dqn_suite.py`. exp03's depth axis is confounded with effective
+  entanglement depth (CORRECTIONS.md#fix-07); this separates the two by changing
+  one boolean. Run it with exp03 or the repo's only clean positive stays
+  confounded.
+- **Rebuild every "the paper reports X" statement on `data/paper_ppo_summary.csv`**
+  rather than on figures. The spreads are large enough to change several
+  readings - see docs/PAPER-BASELINES.md.
+- **exp02 comparison target.** The paper's OR block is now available at 10 seeds
+  (`Quantum_r{4,8,16,32}`, `Classical_r{4,8,16,32}`), so exp02 has a real
+  comparator instead of a figure.
 
 ## Adding an experiment
 

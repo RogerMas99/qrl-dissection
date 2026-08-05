@@ -1,0 +1,222 @@
+"""
+Run the whole DQN suite. One entry point, resumable, budgeted.
+
+    python scripts/run_dqn_suite.py --plan                    # what would run, and where
+    python scripts/run_dqn_suite.py --pass coverage           # 3 seeds, everything
+    python scripts/run_dqn_suite.py --pass robustness         # 10 seeds, everything
+    python scripts/run_dqn_suite.py --only exp03 exp03b       # just the pair that matters
+    python scripts/run_dqn_suite.py --pass robustness --budget-minutes 300
+
+DESIGN NOTES, because they are the difference between "runs" and "runs many times"
+----------------------------------------------------------------------------------
+**Resumability is at cell granularity.** Every experiment writes one manifest per
+cell and skips finished cells. Interrupt at any point, rerun the same command,
+and only what is missing is computed. That is what makes a budget flag safe: the
+suite stops mid-grid without losing anything, and the existing coverage seeds
+count as the first seeds of a robustness pass rather than being discarded.
+
+**Seeds are the axis that scales, so they are a flag rather than a constant.**
+`--pass coverage` is 3 seeds and answers "is there an effect worth measuring".
+`--pass robustness` is 10 and is what a conclusion needs. The paper's own spreads
+(docs/PAPER-BASELINES.md) show several published contrasts sitting inside one
+standard deviation at 10 seeds; nothing here should be written up on 3.
+
+**exp03 and exp03b are a pair.** exp03b differs from exp03 by one boolean and
+exists to decide whether exp03's result is about reuploading or about
+entanglement (CORRECTIONS.md#fix-07). Running one without the other leaves the
+repo's only clean positive confounded, so `--only exp03` warns.
+
+**Preflight is not optional.** FIX-05 fails silently in the replay path: a
+FrozenLake run can complete and produce a plausible flat curve trained on one
+observation repeated across the batch. The gate runs before any cell.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import pathlib
+import subprocess
+import sys
+import time
+from typing import Dict, List
+
+REPO = pathlib.Path(__file__).resolve().parents[1]
+
+# Each entry: the script, its output subdirectory, how a seed list is passed, and
+# how many cells one seed contributes (for the progress table).
+SUITE: Dict[str, Dict] = {
+    "exp01": {
+        "script": "exp01_dqn_cartpole_capacity.py",
+        "outdir": "exp01_dqn_cartpole_capacity",
+        "cells_per_seed": 6,     # 3 arms x FIX-01 on/off
+        "env": "CartPole-v1",
+        "what": "block 3, ansatz/capacity, with the fair matched control",
+    },
+    "exp02": {
+        "script": "exp02_dqn_cartpole_output_reuse.py",
+        "outdir": "exp02_dqn_cartpole_output_reuse",
+        "cells_per_seed": 4,     # R in {4, 8, 16, 32}
+        "env": "CartPole-v1",
+        "what": "block 1, Output Reuse",
+    },
+    "exp03": {
+        "script": "exp03_dqn_cartpole_data_reuploading.py",
+        "outdir": "exp03_dqn_cartpole_data_reuploading",
+        "cells_per_seed": 3,     # L in {1, 2, 5}
+        "env": "CartPole-v1",
+        "what": "block 2, Data Reuploading - the repo's clean positive",
+    },
+    "exp03b": {
+        "script": "exp03b_dqn_cartpole_dr_unentangled.py",
+        "outdir": "exp03b_dqn_cartpole_dr_unentangled",
+        "cells_per_seed": 3,
+        "env": "CartPole-v1",
+        "what": "exp03 with ent=False - decides what exp03 was measuring",
+    },
+    "exp04": {
+        "script": "exp04_dqn_frozenlake_embeddings.py",
+        "outdir": "exp04_dqn_frozenlake_embeddings",
+        "cells_per_seed": 6,     # stage 1: 3 arms x FIX-01 on/off
+        "env": "FrozenLake4x4Scalar-v0",
+        "what": "second environment, embedding/DR, and FIX-01 where it is measurable",
+        "extra": ["--stage", "1"],
+    },
+    "exp04b": {
+        "script": "exp04_dqn_frozenlake_embeddings.py",
+        "outdir": "exp04_dqn_frozenlake_embeddings",
+        "cells_per_seed": 6,     # stage 2: Config A x4 + Config B x2
+        "env": "FrozenLake4x4Scalar-v0",
+        "what": "exp04 stage 2, the hybrid sweeps",
+        "extra": ["--stage", "2"],
+        "requires": "exp04",
+    },
+}
+
+PASSES = {"smoke": [1], "coverage": [1, 2, 3], "robustness": list(range(1, 11))}
+
+
+def preflight() -> bool:
+    """Environment, vendored integrity and the FIX-05 gate. All or nothing."""
+    print("=" * 68)
+    print("PREFLIGHT")
+    print("=" * 68)
+    ok = True
+
+    try:
+        sys.path.insert(0, str(REPO / "src"))
+        import qrl_dissection
+        report = qrl_dissection.upstream_report()
+        print(json.dumps(report, indent=2))
+    except Exception as exc:
+        print(f"  FAIL importing qrl_dissection: {type(exc).__name__}: {exc}")
+        return False
+
+    r = subprocess.run([sys.executable, "-m", "pytest", "-q",
+                        str(REPO / "tests")], capture_output=True, text=True,
+                       cwd=str(REPO))
+    tail = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else "(no output)"
+    print(f"\n  tests: {tail}")
+    if r.returncode != 0:
+        print("  FAIL - do not run the suite against a failing test set.")
+        print(r.stdout[-1500:])
+        ok = False
+    return ok
+
+
+def count_cells(outdir: pathlib.Path) -> int:
+    return len(list(outdir.glob("*.manifest.json"))) if outdir.exists() else 0
+
+
+def plan(outroot: pathlib.Path, seeds: List[int], only: List[str]) -> None:
+    print(f"\n{'experiment':10s} {'done':>6s} {'target':>7s}  {'env':24s} what")
+    print("-" * 100)
+    for key in only:
+        s = SUITE[key]
+        d = outroot / s["outdir"]
+        target = s["cells_per_seed"] * len(seeds)
+        print(f"{key:10s} {count_cells(d):6d} {target:7d}  {s['env']:24s} {s['what']}")
+    print(f"\nseeds: {seeds}    outroot: {outroot}")
+    print("Counts are per-experiment manifests; exp04 and exp04b share a directory.")
+
+
+def run(key: str, outroot: pathlib.Path, seeds: List[int], steps: int | None,
+        deadline: float | None) -> bool:
+    """Returns False if the budget ran out before the experiment finished."""
+    s = SUITE[key]
+    cmd = [sys.executable, str(REPO / "experiments" / s["script"]),
+           "--outdir", str(outroot / s["outdir"]),
+           "--seeds", *[str(x) for x in seeds]]
+    cmd += s.get("extra", [])
+    if steps:
+        cmd += ["--steps", str(steps)]
+
+    print("\n" + "=" * 68)
+    print(f"{key}  -  {s['what']}")
+    print("=" * 68, flush=True)
+
+    proc = subprocess.Popen(cmd, cwd=str(REPO), stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True, bufsize=1,
+                            env={**__import__("os").environ,
+                                 "PYTHONPATH": str(REPO / "src")})
+    try:
+        for line in proc.stdout:
+            if line.startswith("global_step"):     # the noisy per-episode log
+                continue
+            print(line, end="")
+            if deadline and time.time() > deadline:
+                print("\n[budget] deadline reached - stopping after the current cell.")
+                proc.terminate()
+                return False
+    finally:
+        proc.wait()
+    return True
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--outroot", default="results")
+    p.add_argument("--pass", dest="which", choices=list(PASSES), default="coverage")
+    p.add_argument("--seeds", nargs="+", type=int, default=None,
+                   help="overrides --pass")
+    p.add_argument("--only", nargs="+", choices=list(SUITE), default=list(SUITE))
+    p.add_argument("--steps", type=int, default=None,
+                   help="override the per-experiment default budget")
+    p.add_argument("--budget-minutes", type=float, default=None)
+    p.add_argument("--plan", action="store_true", help="show status and exit")
+    p.add_argument("--skip-preflight", action="store_true")
+    args = p.parse_args()
+
+    seeds = args.seeds or PASSES[args.which]
+    outroot = pathlib.Path(args.outroot)
+    order = [k for k in SUITE if k in args.only]     # keep declaration order
+
+    if "exp03" in order and "exp03b" not in order:
+        print("! exp03 without exp03b leaves the DR result confounded with")
+        print("  entanglement (CORRECTIONS.md#fix-07). Run both, or know why not.\n")
+    if "exp04b" in order and "exp04" not in order:
+        print("! exp04 stage 2 before stage 1: the liveness gate has not run.\n")
+
+    if args.plan:
+        plan(outroot, seeds, order)
+        return 0
+
+    if not args.skip_preflight and not preflight():
+        return 1
+
+    deadline = time.time() + args.budget_minutes * 60 if args.budget_minutes else None
+    t0 = time.time()
+    for key in order:
+        if not run(key, outroot, seeds, args.steps, deadline):
+            break
+
+    print("\n" + "=" * 68)
+    print(f"elapsed {(time.time()-t0)/60:.1f} min")
+    plan(outroot, seeds, order)
+    print("\nRerun the same command to continue; finished cells are skipped.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
