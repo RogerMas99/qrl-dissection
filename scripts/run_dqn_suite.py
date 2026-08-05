@@ -9,6 +9,13 @@ Run the whole DQN suite. One entry point, resumable, budgeted.
 
 DESIGN NOTES, because they are the difference between "runs" and "runs many times"
 ----------------------------------------------------------------------------------
+**`--budget-minutes` bounds one invocation, not the work.** It is a wall clock,
+checked between cells: when the deadline has passed the suite lets the running
+cell finish, writes its manifest, and stops. Rerun the same command - in the same
+session or a week later - and it carries on. This exists because Colab
+disconnects, laptops close, and a 10-seed pass is measured in hours; without it
+you would either babysit the session or lose a half-trained cell to a timeout.
+
 **Resumability is at cell granularity.** Every experiment writes one manifest per
 cell and skips finished cells. Interrupt at any point, rerun the same command,
 and only what is missing is computed. That is what makes a budget flag safe: the
@@ -159,13 +166,27 @@ def run(key: str, outroot: pathlib.Path, seeds: List[int], steps: int | None,
                             stderr=subprocess.STDOUT, text=True, bufsize=1,
                             env={**__import__("os").environ,
                                  "PYTHONPATH": str(REPO / "src")})
+    # The budget is checked at CELL BOUNDARIES, not mid-training. Killing a cell
+    # halfway through loses its compute entirely - no manifest is written, so the
+    # next session starts it again from zero. Waiting for the running cell to
+    # finish costs at most one cell of overshoot and loses nothing.
+    over_budget = False
     try:
         for line in proc.stdout:
             if line.startswith("global_step"):     # the noisy per-episode log
                 continue
             print(line, end="")
-            if deadline and time.time() > deadline:
-                print("\n[budget] deadline reached - stopping after the current cell.")
+
+            stripped = line.strip()
+            cell_finished = stripped.startswith("ok ") or stripped.startswith("[skip]")
+
+            if deadline and not over_budget and time.time() > deadline:
+                over_budget = True
+                print("[budget] deadline passed - will stop once this cell finishes.",
+                      flush=True)
+            if over_budget and cell_finished:
+                print("[budget] stopping here. Rerun the same command to continue.",
+                      flush=True)
                 proc.terminate()
                 return False
     finally:
@@ -183,7 +204,10 @@ def main() -> int:
     p.add_argument("--only", nargs="+", choices=list(SUITE), default=list(SUITE))
     p.add_argument("--steps", type=int, default=None,
                    help="override the per-experiment default budget")
-    p.add_argument("--budget-minutes", type=float, default=None)
+    p.add_argument("--budget-minutes", type=float, default=None,
+                   help="wall-clock bound for THIS invocation. Checked between "
+                        "cells, so a session can overshoot by up to one cell "
+                        "rather than throwing away a half-trained one.")
     p.add_argument("--plan", action="store_true", help="show status and exit")
     p.add_argument("--skip-preflight", action="store_true")
     args = p.parse_args()
