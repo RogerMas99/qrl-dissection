@@ -28,6 +28,19 @@ is dead for an unrelated reason.
 
 ---
 
+> !! EVERY NUMBER BELOW WAS COMPUTED WITH A BIASED STATISTIC.
+>
+> `best_ma50` and `greedy_best` are maxima over the training curve. A maximum
+> over a noisy curve is positively biased and the bias grows with variance, so a
+> noisier arm scores higher for nothing - measured at 567 vs 306 for two arms of
+> identical true performance. The quantum arms here are several times noisier
+> than the classical ones, so the protocol flatters them.
+>
+> Recompute with `core.stats.final_performance` (mean over the final 10% of
+> episodes) before treating any of these as conclusions. It needs no retraining:
+> every episode is in the CSVs. Notebook 20 section 2b reports both side by side.
+> Rationale and checklist: docs/STATISTICS.md.
+
 ## Experiment 01 - capacity-matched classical control
 
 Status: **specified, not yet run.**

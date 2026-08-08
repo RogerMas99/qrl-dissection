@@ -52,6 +52,30 @@ this agent work here?"; they trigger the commitment cleanly, with none of
 FrozenLake's ambiguity; and no experiment in this repo has had its robustness
 pass yet, so a third environment before then buys width at the cost of depth.
 
+## !! STANDING NOTE - the framing, and the metric
+
+**Framing.** See docs/LITERATURE.md. Skolik, Jerbi & Dunjko (2022) already ran
+PQC + deep Q-learning with architectural ablations on CartPole AND FrozenLake.
+The 2025 dissection paper is more systematic about the block decomposition but
+moved to PPO and to CartPole alone, without commenting on the change. This work
+takes the blocks back to DQN - a closed loop, not an extension - and finds that
+the library's off-policy path had not been maintained for the journey. Write the
+introduction from that, not from "we re-ran their experiments".
+
+Consequence for exp04: FrozenLake DOES have a published DQN reference, in Skolik
+et al., whose sweep is n_layers in {5, 10, 15}. exp04 is a partial replication of
+a foundational result plus the things it lacked - a matched classical control,
+seeds, and FIX-05.
+
+**Metric.** See docs/STATISTICS.md. `best_ma50` and `greedy_best` are maxima over
+training, which are positively biased by an amount that grows with variance. Two
+arms with identical true performance and different noise score 567 and 306 under
+that protocol. The quantum arms are ~3x noisier than the classical ones in the
+paper's own data, so it flatters them systematically. Every number currently in
+RESULTS-LOG.md was produced this way. Recompute with
+core.stats.final_performance - it needs no retraining - before any of it is
+written up as a conclusion.
+
 ## !! STANDING COMMITMENT - robustness pass (plan "B")
 
 **Every block sweep in this repo is currently a COVERAGE pass at 3 seeds.** This

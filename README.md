@@ -153,6 +153,18 @@ A full structural comparison, including the one place where our configuration
 diverges from theirs and what that does and does not invalidate, is in
 `docs/COMPARISON-WITH-PAPER-REPO.md`.
 
+`docs/LITERATURE.md` places the work in its lineage - Skolik et al. (2022) did
+PQC + deep Q-learning with architectural ablations, on CartPole *and* FrozenLake,
+three years before the dissection paper moved the same questions to PPO. This
+thesis takes them back off-policy, which makes it a closed loop rather than an
+extension - and explains why the library's off-policy path needed seven
+corrections to get there.
+
+`docs/STATISTICS.md` records what we report and why, following Agarwal et al.
+(2021). It also documents a bias in the metric this repository was using: `best_ma50`
+and `greedy_best` are maxima over training, which reward a noisier arm for being
+noisier. Recompute before writing anything up.
+
 ## Status
 
 Experiments 01 and 03 have coverage results (3 seeds); 02 is scripted. Experiment

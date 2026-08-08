@@ -11,7 +11,7 @@ from .capacity import (
     match_hidden_width,
     pqc_parameter_budget,
 )
-from . import baselines  # noqa: F401
+from . import baselines, stats  # noqa: F401
 from .compat import apply_upstream_patches, upstream_report
 from .configs import ARMS, ENVIRONMENTS, build_arm_config
 from .obs_adapters import (
@@ -28,6 +28,6 @@ __all__ = [
     "match_hidden_width", "pqc_parameter_budget",
     "ARMS", "ENVIRONMENTS", "build_arm_config",
     "DiscreteToBoxObs", "OneHotObs", "register_environments",
-    "baselines",
+    "baselines", "stats",
     "FROZEN_SCALAR_ID", "FROZEN_ONEHOT_ID",
 ]
