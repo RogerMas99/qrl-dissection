@@ -36,6 +36,19 @@ confound (NEW-02) surfaced. That history is worth more than a tidy directory.
    cell rather than redoing ten.
 5. `20` again, then copy the tables into `docs/RESULTS-LOG.md` and commit.
 
+### Two names for one path
+
+The environment cell defines `RESULTS`, and `RES` as an alias for it. Both point
+at the same directory; the alias exists because earlier cells used the shorter
+name and there is no reason to break a notebook someone already has open.
+
+Note the trap it was hiding: IPython substitutes `{VAR}` into `!` commands at run
+time, and when the name is **undefined** it passes the literal string `{VAR}` to
+the shell rather than raising. The failure then surfaces as bash complaining
+about a directory called `{CODE}`, which points nowhere near the real cause -
+usually just that the environment cell has not been run in this kernel. Each
+runner notebook now asserts both names are defined right after that cell.
+
 ### Where the files live
 
 `drive.mount()` does not copy anything — it makes Drive appear as a folder inside

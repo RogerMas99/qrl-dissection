@@ -61,6 +61,7 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import time
@@ -75,6 +76,7 @@ SUITE: Dict[str, Dict] = {
         "script": "exp01_dqn_cartpole_capacity.py",
         "outdir": "exp01_dqn_cartpole_capacity",
         "cells_per_seed": 6,     # 3 arms x FIX-01 on/off
+        "default_steps": 60_000,
         "env": "CartPole-v1",
         "what": "block 3, ansatz/capacity, with the fair matched control",
     },
@@ -82,6 +84,7 @@ SUITE: Dict[str, Dict] = {
         "script": "exp02_dqn_cartpole_output_reuse.py",
         "outdir": "exp02_dqn_cartpole_output_reuse",
         "cells_per_seed": 8,     # R in {4,8,16,32} x {hybrid, classical control}
+        "default_steps": 100_000,
         "env": "CartPole-v1",
         "what": "block 1, Output Reuse",
     },
@@ -89,6 +92,7 @@ SUITE: Dict[str, Dict] = {
         "script": "exp03_dqn_cartpole_data_reuploading.py",
         "outdir": "exp03_dqn_cartpole_data_reuploading",
         "cells_per_seed": 3,     # L in {1, 2, 5}
+        "default_steps": 100_000,
         "env": "CartPole-v1",
         "what": "block 2, Data Reuploading - the repo's clean positive",
     },
@@ -96,6 +100,7 @@ SUITE: Dict[str, Dict] = {
         "script": "exp03b_dqn_cartpole_dr_unentangled.py",
         "outdir": "exp03b_dqn_cartpole_dr_unentangled",
         "cells_per_seed": 3,
+        "default_steps": 100_000,
         "env": "CartPole-v1",
         "what": "exp03 with ent=False - decides what exp03 was measuring",
     },
@@ -103,6 +108,7 @@ SUITE: Dict[str, Dict] = {
         "script": "exp04_dqn_frozenlake_embeddings.py",
         "outdir": "exp04_dqn_frozenlake_embeddings",
         "cells_per_seed": 6,     # stage 1: 3 arms x FIX-01 on/off
+        "default_steps": 100_000,
         "env": "FrozenLake4x4Scalar-v0",
         "what": "second environment, embedding/DR, and FIX-01 where it is measurable",
         "extra": ["--stage", "1"],
@@ -111,6 +117,7 @@ SUITE: Dict[str, Dict] = {
         "script": "exp04_dqn_frozenlake_embeddings.py",
         "outdir": "exp04_dqn_frozenlake_embeddings",
         "cells_per_seed": 6,     # stage 2: Config A x4 + Config B x2
+        "default_steps": 100_000,
         "env": "FrozenLake4x4Scalar-v0",
         "what": "exp04 stage 2, the hybrid sweeps",
         "extra": ["--stage", "2"],
@@ -250,7 +257,8 @@ def plan(outroot: pathlib.Path, seeds: List[int], only: List[str],
 
 
 def run(key: str, outroot: pathlib.Path, seeds: List[int], steps: int | None,
-        deadline: float | None, budget, claim: bool = False) -> bool:
+        deadline: float | None, budget, claim: bool = False,
+        progress_every: float = 60.0) -> bool:
     """Returns False if a budget ran out before the experiment finished.
 
     `budget` is a one-element list holding the remaining cell allowance, mutated
@@ -278,11 +286,46 @@ def run(key: str, outroot: pathlib.Path, seeds: List[int], steps: int | None,
     # halfway through loses its compute entirely - no manifest is written, so the
     # next session starts it again from zero. Waiting for the running cell to
     # finish costs at most one cell of overshoot and loses nothing.
+    # PROGRESS. Upstream already prints `global_step=N` once per episode; the
+    # suite used to drop those lines entirely, which left a multi-hour cell
+    # looking indistinguishable from a hung one. They are throttled into a single
+    # status line instead: where we are in the cell, where we are in the grid,
+    # and two ETAs. With cells that run for hours, knowing whether to wait or to
+    # go to bed is the difference between using a session and babysitting it.
+    total_cells = s["cells_per_seed"] * len(seeds)
+    budget_steps = steps or s.get("default_steps")
+    cell_i = 0
+    cell_t0 = time.time()
+    last_report = 0.0
+    step_re = re.compile(r"global_step=(\d+)")
+
     over_budget = False
     try:
         for line in proc.stdout:
-            if line.startswith("global_step"):     # the noisy per-episode log
+            if line.startswith("global_step"):
+                m = step_re.search(line)
+                now = time.time()
+                if m and budget_steps and now - last_report >= progress_every:
+                    last_report = now
+                    step = int(m.group(1))
+                    frac = min(1.0, step / budget_steps)
+                    el = now - cell_t0
+                    cell_eta = (el / frac - el) if frac > 0.01 else None
+                    grid_eta = None
+                    if cell_eta is not None and cell_i:
+                        per_cell = el / frac
+                        grid_eta = cell_eta + per_cell * max(0, total_cells - cell_i)
+                    bar = "#" * int(frac * 24) + "." * (24 - int(frac * 24))
+                    print(f"    [{bar}] {frac*100:5.1f}%  cell {cell_i}/{total_cells}"
+                          f"  elapsed {_hms(el)}"
+                          f"  cell ETA {_hms(cell_eta) if cell_eta else '?'}"
+                          f"  grid ETA {_hms(grid_eta) if grid_eta else '?'}",
+                          flush=True)
                 continue
+            if line.startswith("[run "):
+                cell_i += 1
+                cell_t0 = time.time()
+                last_report = 0.0
             print(line, end="")
 
             stripped = line.strip()
@@ -320,6 +363,8 @@ def main() -> int:
     p.add_argument("--only", nargs="+", choices=list(SUITE), default=list(SUITE))
     p.add_argument("--steps", type=int, default=None,
                    help="override the per-experiment default budget")
+    p.add_argument("--progress-every", type=float, default=60.0,
+                   help="seconds between progress lines. 0 disables.")
     p.add_argument("--claim", action="store_true",
                    help="cooperative locking, for running the SAME command from "
                         "several Colab sessions at once. Each session takes "
@@ -357,7 +402,8 @@ def main() -> int:
     budget = [args.max_cells]
     t0 = time.time()
     for key in order:
-        if not run(key, outroot, seeds, args.steps, deadline, budget, args.claim):
+        if not run(key, outroot, seeds, args.steps, deadline, budget, args.claim,
+                   args.progress_every):
             break
 
     print("\n" + "=" * 68)
