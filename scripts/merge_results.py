@@ -35,12 +35,25 @@ def digest(p: pathlib.Path, limit: int = 1 << 20) -> str:
     return h.hexdigest()
 
 
+# Artefacts that must NOT travel between machines.
+#   *.lock.json  a claim from another session. Stale locks are reclaimed after
+#                12h so they would expire anyway, but copying one in can stall a
+#                cell for half a day for no reason.
+#   *.bak        migration backups; they belong with the tree that produced them.
+#   *.rejected   copies already judged wrong by resolve_run_clashes.py. Copying
+#                them back is how a rejected fragment returns to circulation.
+SKIP_SUFFIXES = (".lock.json", ".manifest.json.bak", ".rejected")
+
+
 def merge(src: pathlib.Path, dst: pathlib.Path, apply: bool, rel="") -> dict:
-    stats = {"copied": 0, "duplicate": 0, "conflict": 0}
+    stats = {"copied": 0, "duplicate": 0, "conflict": 0, "skipped": 0}
     dst.mkdir(parents=True, exist_ok=True) if apply else None
     for item in sorted(src.iterdir()):
         target = dst / item.name
         here = f"{rel}/{item.name}".lstrip("/")
+        if any(item.name.endswith(x) for x in SKIP_SUFFIXES):
+            stats["skipped"] += 1
+            continue
         if item.is_dir():
             sub = merge(item, target, apply, here)
             for k in stats:
@@ -80,7 +93,8 @@ def main() -> int:
     print(f"merging {src}\n     -> {dst}\n")
     stats = merge(src, dst, args.apply)
     print(f"\n{stats['copied']} new file(s), {stats['duplicate']} identical "
-          f"duplicate(s) skipped, {stats['conflict']} conflict(s) left alone")
+          f"duplicate(s) skipped, {stats['conflict']} conflict(s) left alone, "
+          f"{stats['skipped']} lock/backup file(s) not copied")
     if stats["conflict"]:
         print("\nConflicts mean the same cell name exists in both trees with "
               "different content.\nInspect them before deciding: two sessions may "
@@ -89,7 +103,16 @@ def main() -> int:
     if not args.apply:
         print("\nreport only. Re-run with --apply to copy.")
     else:
-        print("\nConfirm with: python scripts/inventory_results.py <dest> -v")
+        print("\nNow, in this order:")
+        print("  1. python scripts/inventory_results.py <dest> -v")
+        print("       cell counts should equal the sum of the sources")
+        print("  2. python scripts/repair_nested_runs.py <dest>")
+        print("       catches any runs/runs/ nesting from an earlier hand-move")
+        print("  3. python scripts/resolve_run_clashes.py <dest>")
+        print("       decides between duplicate copies by their logged steps")
+        print("  4. python scripts/migrate_manifests.py <dest>/<experiment> ...")
+        print("       only for whatever the inventory still flags as legacy")
+        print("  5. python scripts/run_dqn_suite.py --plan --outroot <dest>")
     return 0
 
 

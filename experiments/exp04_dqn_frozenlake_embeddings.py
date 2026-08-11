@@ -299,7 +299,8 @@ def main() -> int:
                              total_timesteps=steps, dqn_kwargs=DQN_KWARGS)
                      for arm in arms for fix in (False, True) for s in seeds]
             run_grid(specs, outdir, env_id=env_id,
-                     eval_cfg=eval_cfg_for(env_id, args.eval_every, claim=args.claim))
+                     eval_cfg=eval_cfg_for(env_id, args.eval_every),
+                     claim=args.claim)
         summarise(outdir)
         print("\nGATE: stage 2 is only interpretable if frozen_onehot_mlp reached a")
         print("success rate near 1.0. If it did not, repair the regime first.")
@@ -313,7 +314,8 @@ def main() -> int:
     print(f"{len(specs)} hybrid cells. Measured throughput on a CPU runtime: "
           f"~25 steps/s at 4 qubits, ~50 at 1 qubit.")
     run_grid(specs, outdir, env_id=FROZEN_SCALAR_ID,
-             eval_cfg=eval_cfg_for(FROZEN_SCALAR_ID, args.eval_every, claim=args.claim))
+             eval_cfg=eval_cfg_for(FROZEN_SCALAR_ID, args.eval_every),
+             claim=args.claim)
     summarise(outdir)
     print("\nROBUSTNESS (plan B): re-run at 8-10 seeds before writing any of this")
     print("up as a conclusion. At 1-4 qubits that is affordable here - it has not")

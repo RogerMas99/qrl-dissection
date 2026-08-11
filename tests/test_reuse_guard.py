@@ -1,3 +1,4 @@
+import pathlib
 """A finished cell may only be reused if it answers the same question.
 
 This exists because it did not hold. `run_name` encodes arm, FIX-01 state, seed
@@ -186,3 +187,18 @@ def test_unreadable_lock_is_treated_as_stale(tmp_path):
     mp = tmp_path / "run.manifest.json"
     _lock_path(mp).write_text("{not json")
     assert claim_cell(mp, owner="B") is True
+
+
+def test_exp04_wires_claim_into_run_grid_not_eval_cfg():
+    """Regression for a real bug: --claim was passed to eval_cfg_for(), which
+    builds a GreedyEvalConfig and has no use for it, instead of to run_grid(),
+    which is what actually needs it to lock cells. Caught the first time exp04
+    was run with --claim: TypeError, eval_cfg_for() got an unexpected keyword
+    argument 'claim'."""
+    src = pathlib.Path("experiments/exp04_dqn_frozenlake_embeddings.py").read_text()
+    assert "eval_cfg_for(env_id, args.eval_every, claim=" not in src
+    assert "eval_cfg_for(FROZEN_SCALAR_ID, args.eval_every, claim=" not in src
+    assert src.count("claim=args.claim") == 2, (
+        "expected exactly the two run_grid() calls (stage 1 and stage 2) to "
+        "receive claim=args.claim"
+    )
