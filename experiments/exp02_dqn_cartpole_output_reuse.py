@@ -64,7 +64,14 @@ def run_one(outdir, name, agent_type, cfg, seed, fix_autoreset, steps, kw):
     out = runner.train(steps, progress_bar=False)
     m = {"name": name, "agent_type": agent_type, "seed": seed,
          "fix_autoreset": fix_autoreset, "outcome": out.__dict__,
-         "config": {k: str(v) for k, v in cfg.items()}}
+         "config": {k: str(v) for k, v in cfg.items()},
+         # FIX: total_timesteps and dqn_kwargs were never written here, so a
+         # manifest produced by this function was legacy the moment it was
+         # created - a cell finished today could be rejected as unverifiable
+         # tomorrow. Reproduced directly: hybrid_OR4__s4 completed successfully
+         # overnight, then failed the reuse guard the next morning with exactly
+         # that message. exp03 and exp03b never had this bug; only exp02 did.
+         "total_timesteps": steps, "dqn_kwargs": kw}
     manifest.write_text(json.dumps(m, indent=2, default=str))
     if CLAIM[0]:
         release_cell(manifest)

@@ -202,3 +202,16 @@ def test_exp04_wires_claim_into_run_grid_not_eval_cfg():
         "expected exactly the two run_grid() calls (stage 1 and stage 2) to "
         "receive claim=args.claim"
     )
+
+
+def test_exp02_manifest_writer_records_the_fields_the_guard_checks():
+    """Regression for a real bug. exp02's run_one wrote a manifest without
+    total_timesteps or dqn_kwargs, so any cell it produced was legacy the
+    instant it was created - a cell could finish successfully overnight and
+    still be rejected as unverifiable the next morning. exp03 and exp03b never
+    had this bug; only exp02 did. Reproduced directly with hybrid_OR4__s4."""
+    src = pathlib.Path("experiments/exp02_dqn_cartpole_output_reuse.py").read_text()
+    block = src[src.index('m = {"name": name, "agent_type"'):]
+    block = block[:block.index("manifest.write_text")]
+    assert '"total_timesteps": steps' in block
+    assert '"dqn_kwargs": kw' in block
