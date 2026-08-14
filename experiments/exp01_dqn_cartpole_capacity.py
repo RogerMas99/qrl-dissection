@@ -110,7 +110,8 @@ def main() -> int:
     specs = build_specs(args)
     print(f"\n=== running {len(specs)} cells into {outdir} ===")
     results = run_grid(specs, outdir,
-                       eval_cfg=GreedyEvalConfig(every_steps=args.eval_every, claim=args.claim))
+                       eval_cfg=GreedyEvalConfig(every_steps=args.eval_every),
+                       claim=args.claim)
 
     failures = [r for r in results if "error" in r]
     print(f"\ndone: {len(results) - len(failures)} ok, {len(failures)} failed")

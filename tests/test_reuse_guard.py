@@ -215,3 +215,29 @@ def test_exp02_manifest_writer_records_the_fields_the_guard_checks():
     block = block[:block.index("manifest.write_text")]
     assert '"total_timesteps": steps' in block
     assert '"dqn_kwargs": kw' in block
+
+
+def test_exp01_wires_claim_into_run_grid_not_eval_cfg():
+    """Same regression as exp04: --claim was passed to GreedyEvalConfig, which
+    has no use for it, instead of to run_grid(), which actually needs it to
+    lock cells between sessions. Caught running exp01 with --claim:
+    TypeError: GreedyEvalConfig.__init__() got an unexpected keyword argument
+    'claim'. run_grid() never received the flag at all."""
+    src = pathlib.Path("experiments/exp01_dqn_cartpole_capacity.py").read_text()
+    assert "GreedyEvalConfig(every_steps=args.eval_every, claim=" not in src
+    assert "claim=args.claim" in src
+
+
+def test_every_run_grid_script_wires_claim_correctly():
+    """Sweep across every experiment that uses run_grid (exp01 and exp04), so
+    this class of bug cannot reappear in one without being caught by CI."""
+    for fname in ("exp01_dqn_cartpole_capacity.py",
+                  "exp04_dqn_frozenlake_embeddings.py"):
+        src = pathlib.Path("experiments") / fname
+        text = src.read_text()
+        if "--claim" not in text:
+            continue
+        assert "claim=" not in text.split("GreedyEvalConfig(")[1].split(")")[0], (
+            f"{fname}: claim is being passed into GreedyEvalConfig's constructor"
+        )
+        assert "claim=args.claim" in text, f"{fname}: run_grid never receives --claim"
