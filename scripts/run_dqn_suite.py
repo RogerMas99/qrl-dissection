@@ -75,10 +75,25 @@ SUITE: Dict[str, Dict] = {
     "exp01": {
         "script": "exp01_dqn_cartpole_capacity.py",
         "outdir": "exp01_dqn_cartpole_capacity",
-        "cells_per_seed": 6,     # 3 arms x FIX-01 on/off
+        "cells_per_seed": 6,     # 3 CLASSICAL arms x FIX-01 on/off (script default)
         "default_steps": 60_000,
         "env": "CartPole-v1",
         "what": "block 3, ansatz/capacity, with the fair matched control",
+    },
+    "exp01h": {
+        # The hybrid arm. Kept as a SEPARATE entry rather than folded into
+        # exp01, because it is the expensive one (real PQC simulation) while
+        # exp01's default is the three cheap classical arms - conflating them
+        # would make --only exp01 silently expensive for anyone who forgot the
+        # split exists. Passes --arms hybrid_fig4 explicitly, which the plain
+        # script accepts but this suite previously had no entry point for.
+        "script": "exp01_dqn_cartpole_capacity.py",
+        "outdir": "exp01_dqn_cartpole_capacity",     # SAME dir: one experiment
+        "cells_per_seed": 2,     # 1 arm x FIX-01 on/off
+        "default_steps": 60_000,
+        "env": "CartPole-v1",
+        "what": "block 3, the hybrid arm (PQC) - expensive, run separately",
+        "extra": ["--arms", "hybrid_fig4"],
     },
     "exp02": {
         "script": "exp02_dqn_cartpole_output_reuse.py",
@@ -126,6 +141,11 @@ SUITE: Dict[str, Dict] = {
 }
 
 PASSES = {"smoke": [1], "coverage": [1, 2, 3], "robustness": list(range(1, 11))}
+
+# Note for --only: exp01's three classical arms and exp01h's hybrid arm are ONE
+# experiment split into two suite entries, purely so the expensive PQC arm is
+# never run by accident. Pass both if you want the full comparison:
+#     --only exp01 exp01h
 
 
 def preflight() -> bool:

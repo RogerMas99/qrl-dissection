@@ -241,3 +241,17 @@ def test_every_run_grid_script_wires_claim_correctly():
             f"{fname}: claim is being passed into GreedyEvalConfig's constructor"
         )
         assert "claim=args.claim" in text, f"{fname}: run_grid never receives --claim"
+
+
+def test_exp01h_entry_targets_the_hybrid_arm():
+    """exp01h exists specifically because calling the script directly floods
+    the terminal with one raw global_step line per episode - hybrid_fig4's
+    episodes are slow enough that this can visibly bog down a browser tab.
+    Routing through run_dqn_suite.py gives the throttled progress bar instead."""
+    src = pathlib.Path("scripts/run_dqn_suite.py").read_text()
+    assert '"exp01h"' in src
+    block = src.split('"exp01h"')[1].split("},")[0]
+    assert '"--arms", "hybrid_fig4"' in block
+    assert '"outdir": "exp01_dqn_cartpole_capacity"' in block, (
+        "exp01h must share exp01's output directory - it is one experiment"
+    )
