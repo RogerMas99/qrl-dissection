@@ -254,8 +254,14 @@ def main() -> int:
     p.add_argument("--seeds", nargs="+", type=int, default=None,
                    help="default: 5 seeds for stage 1, 3 for stage 2 (coverage)")
     p.add_argument("--steps", type=int, default=100_000)
-    p.add_argument("--dr-a", nargs="+", type=int, default=FROZEN_DR_A)
-    p.add_argument("--dr-b", nargs="+", type=int, default=FROZEN_DR_B)
+    p.add_argument("--dr-a", nargs="*", type=int, default=FROZEN_DR_A,
+                   help="Config A depths for stage 2. Pass with no values "
+                        "(--dr-a) to exclude Config A entirely.")
+    p.add_argument("--dr-b", nargs="*", type=int, default=FROZEN_DR_B,
+                   help="Config B depths for stage 2. Pass with no values "
+                        "(--dr-b) to exclude Config B entirely - e.g. to "
+                        "bound a local run to Config A only while Config B "
+                        "runs elsewhere, guaranteeing no overlap.")
     p.add_argument("--eval-every", type=int, default=10_000)
     p.add_argument("--with-ablation", action="store_true",
                    help="add the entanglement-off variants of Config B")

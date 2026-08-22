@@ -19,6 +19,7 @@ paper's published results at all.
 | [FIX-06](#fix-06) | Chapter's transformer signature does not run as printed | Documentation only |
 | [FIX-07](#fix-07) | `ent` is a no-op at depth 1 on the `skolik` template | YES - one published contrast is vacuous |
 | [FIX-08](#fix-08) | a shorter finished run silently satisfied a longer request | ours, not upstream's |
+| [FIX-09](#fix-09) | exp02's migrated manifests could not distinguish hybrid from classical | ours, not upstream's - and it silently defeats the OR block's own comparison |
 
 ---
 
@@ -416,6 +417,179 @@ online rather than depth. The separation is cheap - rerun the same sweep with
 Nothing is patched. The circuit is a faithful implementation of the published
 template; the issue is what a sweep over it means. Recorded here because this
 registry exists for anything that changes how a published number should be read.
+
+---
+
+## FIX-09
+
+**exp02's manifests, once migrated, could not be told apart by arm - both the
+hybrid and the classical control were labelled `hybrid_fig4` - and the analysis
+notebook averaged them together without anyone asking it to.**
+
+Found while auditing the Drive results tree on a new machine, before launching
+exp04b - not by inspecting the numbers first, but by asking why a directory
+that mixes two agent types reported only one arm name.
+
+### Mechanism
+
+`experiments/exp02_dqn_cartpole_output_reuse.py::run_one` writes its manifest by
+hand:
+
+```python
+m = {"name": name, "agent_type": agent_type, "seed": seed,
+     "fix_autoreset": fix_autoreset, "outcome": out.__dict__,
+     "config": {k: str(v) for k, v in cfg.items()},
+     "total_timesteps": steps, "dqn_kwargs": kw}
+```
+
+No `spec` wrapper, no `arm` field - unlike `dqn/runner.py::run_arm`, this script
+never went through the shared pipeline at all. That is tolerable on its own:
+`docs/REUSE.md`'s migration step exists exactly to back-fill manifests like
+this. The failure came from how it was migrated. `docs/REUSE.md`'s own example
+command is
+
+```bash
+python scripts/migrate_manifests.py /content/drive/MyDrive/tfm_qrl/exp03 \
+    --arm hybrid_fig4 --dqn-kwargs '{"batch_size":128,"buffer_size":10000,"train_frequency":10}'
+```
+
+written for **exp03**, whose every cell is a Skolik-depth sweep on
+`hybrid_fig4` - the override is harmless there because there is only one true
+arm in the directory. The same override, run against **exp02**, is wrong:
+exp02's directory holds both `hybrid_OR{R}` cells and the eight `classical_OR{R}`
+control cells added by the amendment in `docs/RESULTS-LOG.md#experiment-02`
+(`agent_type="classic"`, a completely different network). `migrate_manifests.py`
+does not know that difference; it takes the override on trust and writes it into
+every manifest in the directory. All 80 exp02 manifests ended up with
+`spec.arm = "hybrid_fig4"`, independent of their real `agent_type` or `config`.
+
+### Detection and reproduction
+
+```
+$ python -c "... load every exp02 manifest, print distinct spec.arm values ..."
+distinct 'arm' field values: ['hybrid_fig4']          # should be two values, not one
+```
+
+`agent_type` and `config` inside the same manifests were never touched by the
+migration and remained correct throughout - `classical_OR16__s1.manifest.json`
+carries `"agent_type": "classic"`, `"config": {"reuse_indices": "[1, 2, 3]",
+"n_repeats": "16", "net_arch": "[]"}` - so the corruption is confined to
+`spec.arm`, the one field the migration script writes and the one field
+`notebooks/20_dqn_results.ipynb` reads for grouping.
+
+### Consequence: the notebook pools two arms into one number
+
+`notebooks/20_dqn_results.ipynb`'s exp02 cell does not, in fact, use the
+corrupted `spec.arm` directly - it derives `R` from the run name by regex and
+groups by `R` alone, which is a second, independent way to arrive at the same
+failure: pooling every `classical_OR{R}` and `hybrid_OR{R}` cell of the same `R`
+into one mean.
+
+```
+notebook's groupby("R") - what it reports today:
+    R=4   -> 108.8   (mean of hybrid 203.0 and classical 14.6)
+    R=8   -> 127.9   (mean of hybrid 226.0 and classical 29.8)
+    R=16  -> 162.5   (mean of hybrid 216.8 and classical 108.1)
+    R=32  -> 162.4   (mean of hybrid 306.1 and classical 18.8)
+
+split correctly, by real arm:
+                 greedy   n
+is_classical R
+False        4    203.0  10
+             8    226.0  10
+             16   216.8  10
+             32   306.1  10
+True         4     14.6  10
+             8     29.8  10
+             16   108.1  10
+             32    18.8  10
+```
+
+Either bug alone would have been enough to make exp02's headline figure - the
+one comparison the whole experiment exists to run - report a single meaningless
+average instead of the hybrid-vs-classical contrast. Having both meant the
+corrupted `spec.arm` was never even exercised by the code that would have made
+the mistake visible.
+
+### A second, independent finding surfaced while diagnosing this: the classical control's failure is bimodal, not merely undersized
+
+Fixing the metadata revealed the split numbers above, and the natural next
+question - is `classical_OR{R}` merely too small, or dead - was answered by
+reading the ten per-seed learning curves for `classical_OR16` (the arm's best
+performing point) rather than trusting the mean:
+
+```
+classical_OR16, early (first 10% of episodes) vs late (last 10%) mean return:
+  s1   early=17.6   late= 10.1   peak= 72.0   n_eps=8091
+  s2   early=23.0   late=116.6   peak=500.0   n_eps=1167   <- solves CartPole
+  s3   early=20.9   late=  9.7   peak= 88.0   n_eps=8133
+  s4   early=20.0   late=  9.6   peak= 75.0   n_eps=8178
+  s5   early=28.3   late=  9.6   peak=130.0   n_eps=7651
+  s6   early=17.9   late=  9.6   peak= 69.0   n_eps=8296
+  s7   early=19.7   late=  9.6   peak= 97.0   n_eps=8222
+  s8   early=19.5   late=  9.6   peak= 67.0   n_eps=8213
+  s9   early=17.8   late=  9.6   peak= 58.0   n_eps=8300
+  s10  early=18.8   late=  9.6   peak= 60.0   n_eps=8267
+```
+
+Nine of ten seeds show the identical signature already characterised for
+`paper_linear` in exp01 section 2: a transient peak (58-130) followed by decay
+to the ~9.6 degenerate constant-action floor - not "learns slowly", but "learns,
+then collapses", the deadly-triad pattern of a linear Q-function bootstrapping
+against a tiny parameter budget. One seed (s2) is qualitatively different: it
+runs only 1,167 episodes in the same 100k steps (i.e. episodes ~7x longer on
+average) and its late-training mean is 116.6 with a peak of 500 - it solves
+CartPole outright. A mean over the ten (108.1) is therefore not "the classical
+arm performs moderately" - it is nine dead runs and one solved run, averaged,
+which reads as moderate performance for none of the ten seeds individually.
+This is the concrete case `docs/STATISTICS.md` argues from in the abstract: a
+raw mean is dominated by a single outlier, and IQM (`stats.iqm`) recovers the
+typical-case reading (dead) that the mean obscures.
+
+This bimodality is evidence about the **amputated observation**
+(`reuse_indices=[1,2,3]`, cart position discarded), not only about network
+size: `paper_linear` in exp01 - identical design at a fixed `n_repeats=4` -
+showed the same collapse independent of any capacity difference, so the
+capacity gap documented above compounds a pre-existing failure mode rather than
+being its sole cause. A capacity-matched control (`classical_or_matched_r{R}`,
+added below) changes both variables at once; whether it changes the outcome is
+now an open, separately testable question rather than an assumption.
+
+### Fix
+
+Two independent corrections, one for each mechanism above.
+
+**Metadata.** `migrate_manifests.py::arm_for` now recognises `classical_OR*` and
+`hybrid_OR*` as distinct arms (`classical_or` / `hybrid_or`) instead of folding
+both into `hybrid_fig4`; its docstring records why a directory-wide `--arm`
+override is safe for exp03 and wrong for exp02. The 80 already-migrated exp02
+manifests were corrected in place (`spec.arm` rewritten from the run-name
+prefix; `_arm_corrected` records the previous value for audit).
+
+**Analysis.** `notebooks/20_dqn_results.ipynb` section 5 now groups by
+`(arm, R)`, never `R` alone, and reports IQM alongside the mean for exactly the
+reason demonstrated above.
+
+**Capacity.** `core/configs.py::matched_classical_or_config` /
+`build_arm_config("classical_or_matched_r{R}")` - NEW-02's recipe (full
+observation, budget matched to the reference hybrid's *measured* total) applied
+per-R against `hybrid_or_config(R)`'s own budget, which grows with R (222 / 350
+/ 606 / 1118 for R = 4/8/16/32) rather than the fixed ~126 of `HYBRID_FIG4`
+alone - `classical_OR{R}` itself is left untouched, exactly as `paper_linear`
+was left untouched when `matched_classical` was added for exp01.
+
+### Scope
+
+Metadata and analysis-code only for the migration and notebook halves -
+`agent_type` and `config` were always correct in every exp02 manifest, no
+episode data is affected, and nothing needs retraining. The bimodal-collapse
+finding is a reading of data that already existed; it changes how `classical_OR`
+should be described, not what it measures. Pinned by
+`tests/test_paper_arms.py::test_classical_or_matched_control_scales_with_r`
+(the capacity-matching code) and `migrate_manifests.py::arm_for`'s updated
+docstring (the metadata fix); the bimodal-collapse observation itself is
+empirical evidence from already-completed runs, not a code property a test can
+pin, the same status FIX-01's "measured effect" section has.
 
 ---
 

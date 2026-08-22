@@ -38,7 +38,7 @@ from qrl_dissection.core.configs import (
     hybrid_or_config,
     paper_classical_or_config,
 )
-from qrl_dissection.dqn import GreedyEvalConfig, RunSpec, SafeDQN
+from qrl_dissection.dqn import GreedyEvalConfig, RunSpec, SafeDQN, run_grid
 from qrl_dissection.dqn.runner import claim_cell, release_cell, reuse_or_none
 
 # Set from --claim. A list so run_one can read it without a global.
@@ -93,6 +93,15 @@ def main() -> int:
                    help="hybrid arm only. The classical control is what makes "
                         "the OR claim testable, so skip it only deliberately.")
     p.add_argument("--smoke", action="store_true", help="1 seed, R in {4,16} only")
+    p.add_argument("--with-matched-control", action="store_true",
+                   help="[FIX-09 follow-up] also run classical_or_matched_r{R}: "
+                        "NEW-02's recipe (full observation, budget matched to "
+                        "hybrid_OR{R}'s own total) applied to OR. classical_OR{R} "
+                        "above is NOT capacity-matched - see docs/CORRECTIONS.md#fix-09 "
+                        "- so this is the arm that can actually test whether OR's "
+                        "benefit is quantum-specific. Runs through RunSpec/run_grid "
+                        "(not run_one), so it gets correct spec.arm and git_revision "
+                        "from the start, unlike the two loops above.")
     args = p.parse_args()
     CLAIM[0] = args.claim
 
@@ -133,6 +142,22 @@ def main() -> int:
                 name = f"classical_OR{R}__s{seed}"
                 run_one(outdir, name, "classic", cfg, seed, args.fix_autoreset,
                         args.steps, kw)
+
+    # [FIX-09 follow-up] THE CAPACITY-MATCHED CONTROL. classical_OR{R} above
+    # keeps the paper's amputated, zero-hidden-layer design at every R while OR
+    # grows the hybrid's own head with R (measured total 222/350/606/1118 for
+    # R=4/8/16/32 vs classical_OR's 26/50/98/194 - a gap that widens with R,
+    # not a fixed shortfall). Until this arm exists, exp02 can only say the
+    # paper's own classical design dies under DQN here too - not whether OR's
+    # benefit is quantum-specific. Runs through RunSpec/run_grid, which is why
+    # its manifests need no migration and carry git_revision from the start.
+    if args.with_matched_control:
+        specs = [RunSpec(arm=f"classical_or_matched_r{R}", seed=seed,
+                         fix_autoreset=args.fix_autoreset, total_timesteps=args.steps,
+                         dqn_kwargs=kw)
+                 for R in args.repeats for seed in args.seeds]
+        run_grid(specs, outdir, env_id="CartPole-v1",
+                eval_cfg=GreedyEvalConfig(every_steps=10_000), claim=CLAIM[0])
 
     print("\n=== summary (greedy_best by R) ===")
     try:

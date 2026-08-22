@@ -3,7 +3,10 @@
 **Axes:** algorithm `dqn` × environment `frozenlake` × block 2 (embedding / DR)
 **Script:** `experiments/exp04_dqn_frozenlake_embeddings.py`
 **Notebooks:** `notebooks/00_fix05_verification.ipynb` (gate), `notebooks/04_dqn_frozenlake_runner.ipynb`
-**Status:** specified and integrated; stage 0 measured, stages 1-2 not yet run
+**Status:** stage 0 measured; stage 1 done at n=10 (liveness gate PASSES,
+`frozen_onehot_mlp` 0.999 — see the 2026-08-21 update to section 5); stage 2
+underway (`frozen_scalar_1q_L1` at 8/10 seeds, the rest of the grid launching
+now, "exp04b")
 
 ---
 
@@ -225,6 +228,36 @@ the error exp01 caught. Config A runs on that same scalar input and may be dead
 for the same reason. In that case the informative comparison is Config B against
 the one-hot MLP, and it must be reported as a result about the *encoding* rather
 than dressed up as circuit-vs-classical.
+
+> **UPDATE, 2026-08-21 — H4 confirmed unanswerable at L=1, with real statistical
+> power.** Stage 1 finished at n=10 (not the 1-seed smoke this section was
+> written against), and the result the smoke run warned about held up:
+>
+> | arm | success (MA-100, n=10) |
+> |---|---|
+> | `frozen_onehot_mlp` (liveness gate) | 0.999 ± 0.003 — **PASS**, comfortably |
+> | `frozen_matched_scalar` (fair control) | 0.056–0.065 — chance (floor 0.015) |
+> | `frozen_scalar_1q_L1` (Config A, L=1; 8/10 seeds) | 0.050 ± 0.009 — chance |
+>
+> Config A at depth 1 and its capacity-matched classical control are
+> **statistically indistinguishable from each other and from a random policy**.
+> This is not new information about the mechanism — it is the smoke-run warning
+> confirmed, not contradicted — but it changes what H4 can be asked of *at this
+> depth*: "does the circuit beat an equal-budget classical net" is unanswerable
+> when both are dead, exactly as the paragraph above already said it would be.
+>
+> **What changes going forward.** The useful question at Config A is no longer
+> circuit-vs-classical; it is whether **depth (L = 5, 10, 15) rescues the scalar
+> encoding by itself** — a question the dead L=1 point does not resolve one way
+> or the other, since it says nothing about whether the network can learn to use
+> a raw state index given more reuploading. **Config B vs `frozen_onehot_mlp`
+> becomes the primary comparison** of this experiment's stage 2, not a fallback:
+> it is the one pairing where the control is unambiguously alive. Stage 2 is run
+> in full regardless — a rising Config-A curve would itself be informative (depth
+> compensating for a bad encoding), and a flat one confirms the encoding, not the
+> circuit, is the bottleneck, which is worth stating precisely rather than
+> assuming. `frozen_scalar_1q_L1` is also short two seeds (1 and 2 of 10); that is
+> tracked as a pending top-up, not a blocker.
 
 **FIX-02 bonus.** Output scaling should be unnecessary here: with a 0/1 terminal
 reward and γ = 0.99 the optimal action value is bounded by 1, while PauliZ
