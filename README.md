@@ -65,6 +65,7 @@ pulls in off-policy machinery.
 | FIX-06 | Chapter's transformer signature does not run as printed | Documentation only |
 | FIX-07 | `ent` is a no-op at depth 1 on the `skolik` template | YES - one published contrast is vacuous |
 | FIX-08 | a shorter finished run silently satisfied a longer request | ours, not upstream's |
+| FIX-09 | exp02's migrated manifests could not distinguish hybrid from classical | ours, not upstream's |
 
 Full evidence and scope in [`docs/CORRECTIONS.md`](docs/CORRECTIONS.md).
 

@@ -90,10 +90,21 @@ def arm_for(name: str, override):
 
     exp01 mixes several arms in one directory, so a single --arm would be wrong
     for most of its cells. Run names carry it: `paper_linear__fix01on__s1`.
-    exp02/exp03 name theirs `hybrid_OR16__s2` / `hybrid_DR5__s1`, which are all
-    variations on hybrid_fig4 - their guard checks seed, budget and kwargs, not
-    the arm, so recording the base arm is accurate enough and never used to
-    rebuild a config.
+    exp03 names theirs `hybrid_DR5__s1`, which are all variations on
+    hybrid_fig4 - its guard checks seed, budget and kwargs, not the arm, so
+    recording the base arm is accurate enough and never used to rebuild a
+    config.
+
+    exp02 is DIFFERENT and used to be handled like exp03, which was the bug:
+    it mixes `hybrid_OR{R}` AND `classical_OR{R}` in the same directory (the
+    classical control added by the amendment in RESULTS-LOG.md #experiment-02),
+    so collapsing both onto one `--arm hybrid_fig4` (the exp03 example in
+    REUSE.md, reused verbatim) silently merged two different agent types under
+    one label. Downstream, anything grouping by `spec.arm` - or a human reading
+    the manifest - would see only "hybrid_fig4" for BOTH the quantum and the
+    classical arm. This function now tells the two apart explicitly, and a
+    directory-wide `--arm` override is exactly the mistake that reintroduces
+    it, so use it only for a directory with a single true arm.
     """
     if override:
         return override
@@ -102,7 +113,11 @@ def arm_for(name: str, override):
                   "frozen_scalar_mlp_large"):
         if name.startswith(known):
             return known
-    if name.startswith("hybrid_"):        # hybrid_OR16__s2, hybrid_DR5__s1
+    if name.startswith("classical_OR"):   # exp02's classical control
+        return "classical_or"
+    if name.startswith("hybrid_OR"):      # exp02's hybrid sweep
+        return "hybrid_or"
+    if name.startswith("hybrid_DR"):      # exp03/exp03b's depth sweep
         return "hybrid_fig4"
     return None
 

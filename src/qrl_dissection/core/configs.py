@@ -117,6 +117,42 @@ DR_DEPTHS = [1, 2, 5]           # Data Reuploading depths L (Fig. 4 uses 5)
 
 
 # ---------------------------------------------------------------------------
+# [FIX-09 follow-up] Capacity-matched classical control for the OR sweep.
+#
+# exp02's `classical_OR{R}` (transcribed from post-pqc-inference.py::
+# config_classical) is NOT a capacity-matched control: it keeps the paper's
+# amputated observation (reuse_indices=[1,2,3], cart position discarded) and
+# net_arch=[] at every R. Output Reuse repeats the PQC readout R times before
+# the classical head, so the HYBRID side's own parameter budget grows with R
+# (measured: 222/350/606/1118 for R=4/8/16/32 - the 80-param quantum part is
+# fixed, the head is not) while classical_OR stays at 26/50/98/194 - a 6-8x
+# gap that widens with R, not the roughly-matched ~126 of HYBRID_FIG4 alone.
+# Per-seed curves confirm the failure mode is not "less capacity, slower" but
+# the same deadly-triad collapse diagnosed for paper_linear in exp01: 9 of 10
+# classical_OR16 seeds peak early (58-130) then decay to the ~9.6 degenerate
+# floor, with one outlier seed solving CartPole outright (peak 500) - a mean
+# dominated by a single run, which is exactly why IQM exists.
+#
+# This control follows NEW-02's recipe exactly - full observation AND a budget
+# matched to the reference hybrid's MEASURED total - but sized per-R against
+# hybrid_or_config(R), not against the fixed HYBRID_FIG4 reference, since the
+# quantity to match moves with R here. See docs/CORRECTIONS.md#fix-09 and
+# docs/EXPERIMENT-01.md section 5 for why "same total budget" is the honest
+# control (any gap is then attributable to the circuit, not to a parameter
+# advantage).
+# ---------------------------------------------------------------------------
+# NOTE: the matched control is NOT built here. Computing its budget requires
+# constructing the PQC agent (pqc_parameter_budget -> build_agent_for ->
+# gym.make + simplyqrl), which this module must stay importable without (see
+# the module-level note on `_resolve_transform` / transform_fn markers, and
+# tests/conftest.py). It is resolved lazily in `build_arm_config`, exactly
+# like `matched_classical` and `frozen_matched_scalar` below - never at import
+# time.
+for _R in OR_REPEATS:
+    ARMS[f"hybrid_or_r{_R}"] = ("hybrid", hybrid_or_config(_R))
+
+
+# ---------------------------------------------------------------------------
 # The dissection paper's OWN configurations, verbatim.
 #
 # WHY THESE EXIST ALONGSIDE HYBRID_FIG4, AND WHY NOTHING IS BEING REPLACED
@@ -456,6 +492,43 @@ def build_arm_config(
             "_matched_to": hybrid_reference,
             "_match_target": match_to,
             "_observation": observation,
+            "_budget": budget,
+            "_hybrid_total": budgets["total"],
+            "_hybrid_quantum": budgets["quantum"],
+            "_spent_params": spent,
+        }
+        cfg.update(overrides)
+        return "classic", cfg
+
+    if arm.startswith("classical_or_matched_r"):
+        # [FIX-09 follow-up] exp02's classical_OR{R} is not capacity-matched
+        # (see docs/CORRECTIONS.md#fix-09): it keeps the paper's amputated,
+        # zero-hidden-layer design at every R, while OR grows the HYBRID
+        # side's own head with R (measured total: 222/350/606/1118 for
+        # R=4/8/16/32; classical_OR carries only 26/50/98/194). This arm
+        # matches NEW-02's recipe - full observation, budget matched to the
+        # reference hybrid's MEASURED total - but resolved per-R against
+        # hybrid_or_config(R), never against the fixed HYBRID_FIG4 alone,
+        # since the quantity to match moves with R here.
+        try:
+            reps = int(arm.rsplit("_r", 1)[1])
+        except (IndexError, ValueError) as exc:
+            raise ValueError(
+                f"{arm!r}: expected 'classical_or_matched_r<R>', e.g. "
+                "'classical_or_matched_r16'"
+            ) from exc
+        budgets = pqc_parameter_budget(hybrid_or_config(reps), env_id=env_id)
+        budget = budgets["total"] if match_to == "total" else budgets["quantum"]
+        n_repeats = PAPER_LINEAR["n_repeats"]
+        in_dim = len(MATCHED_REUSE_INDICES_FAIR) * n_repeats
+        width, spent = match_hidden_width(budget, in_dim=in_dim, out_dim=2)
+        cfg = {
+            "reuse_indices": list(MATCHED_REUSE_INDICES_FAIR),
+            "n_repeats": n_repeats,
+            "net_arch": [width],
+            "activation": activation,
+            "_matched_to": f"hybrid_or_r{reps}",
+            "_match_target": match_to,
             "_budget": budget,
             "_hybrid_total": budgets["total"],
             "_hybrid_quantum": budgets["quantum"],

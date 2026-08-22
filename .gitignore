@@ -19,3 +19,7 @@ checkpoints/
 *.npy
 *.zip
 !docs/**/*.png
+
+# Local run logs from this session's Colab/local orchestration - not results,
+# not code. Same policy as results/ above.
+logs/

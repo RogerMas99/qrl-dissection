@@ -94,3 +94,30 @@ def test_paper_linear_is_the_or_arm_at_r4():
     _t, a = build_arm_config("paper_linear")
     _t, b = build_arm_config("paper_classical_or_r4")
     assert a == b
+
+
+@pytest.mark.parametrize("R", [4, 8, 16, 32])
+def test_classical_or_matched_control_scales_with_r(R):
+    """[FIX-09 follow-up] classical_OR{R} (exp02's control) is NOT capacity
+    matched: it keeps net_arch=[] at every R while OR grows the hybrid's own
+    head, so the gap widens with R (measured 6-8x). This arm must instead
+    spend close to hybrid_or_config(R)'s MEASURED total, full observation."""
+    from qrl_dissection.core import capacity
+
+    agent_type, cfg = build_arm_config(f"classical_or_matched_r{R}")
+    assert agent_type == "classic"
+    assert cfg["reuse_indices"] == [0, 1, 2, 3]          # full observation, not amputated
+
+    hyb_type, hyb_cfg = build_arm_config(f"hybrid_or_r{R}")
+    hyb_total = capacity.count_trainable(capacity.build_agent_for(hyb_type, hyb_cfg))
+    cls_total = capacity.count_trainable(capacity.build_agent_for(agent_type, cfg))
+    # Matched, not merely "less bad": within 10% of the hybrid's own total,
+    # never the ~6-8x undershoot the unmatched classical_OR control carries.
+    assert abs(cls_total - hyb_total) <= max(10, 0.1 * hyb_total), (
+        f"R={R}: matched control {cls_total} params vs hybrid {hyb_total} - not matched"
+    )
+
+
+def test_classical_or_matched_rejects_bad_suffix():
+    with pytest.raises(ValueError):
+        build_arm_config("classical_or_matched_rXX")
