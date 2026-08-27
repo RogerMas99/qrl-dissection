@@ -591,6 +591,18 @@ docstring (the metadata fix); the bimodal-collapse observation itself is
 empirical evidence from already-completed runs, not a code property a test can
 pin, the same status FIX-01's "measured effect" section has.
 
+**Same mechanism, a second field.** The identical failure recurred on
+`dqn_kwargs`: 68 of exp04's 72 manifests carried CartPole's
+`{train_frequency: 10, buffer_size: 10000}` instead of exp04's own
+`{train_frequency: 1, buffer_size: 50000, learning_starts: 1000}`, from a
+migration that overrode `dqn_kwargs` rather than recognising the directory via
+`KNOWN_KWARGS` (which already lists exp04's correct values). `outcome`
+(`wall_seconds`, `probe`, the episode CSVs) was never touched, so no training
+was ever wrong and nothing here depends on the field - corrected on disk
+2026-08-23. Noted because it is the second time the same override-collapses-a-
+directory pattern has hit this project on a different field; a third
+occurrence would be worth its own entry.
+
 ---
 
 ## FIX-08
