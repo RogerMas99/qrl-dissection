@@ -1,0 +1,191 @@
+"""
+[NEW-05] Exact classical emulator of the unentangled `skolik` circuit.
+
+Why this is possible at all
+----------------------------
+`build_skolik_qlayer(..., ent=False)` (src/simplyqrl/qlayers.py) never applies
+a two-qubit gate. Every gate it uses - the `AngleEmbedding` rotation, `RY`,
+`RZ` - acts on a single wire, and the circuit starts in the product state
+`|0>^n`. A product state acted on only by single-qubit unitaries STAYS a
+product state: there is nothing for those gates to entangle. So each qubit's
+reduced state is exactly a pure single-qubit state throughout, fully
+described by its Bloch vector - a real 3-vector - and `<Z_i>` is just that
+vector's z-component. No amplitudes, no complex numbers, no 2^n scaling: this
+module represents the whole circuit as `n_qubits` independent Bloch vectors,
+updated by real 3x3 rotations, in O(n_qubits * n_layers).
+
+This is not an approximation and not a variational ansatz of our own - it is
+the same computation `build_skolik_qlayer(ent=False)` performs, written in a
+basis that does not need a quantum simulator. `tests/test_su2_equivalence.py`
+is the evidence: forward output and gradients must agree with the real
+PennyLane `TorchLayer`, on the same weights, to ~1e-6.
+
+What this module is NOT
+------------------------
+It does not support `ent=True` - CZ gates entangle, and an entangled two-qubit
+state is not describable by two independent Bloch vectors, so there is no
+"add entanglement" flag to add here. That absence is deliberate and is what
+makes the negative control in the equivalence test meaningful: compare this
+emulator's output against a REAL entangled circuit and the two must differ,
+because they are different computations.
+
+It is infrastructure and verification, not an experimental arm. Numbers in
+the main results tables come from the real PennyLane path; anything produced
+by this module is labelled as such wherever it is reported. See
+docs/CORRECTIONS.md#new-05.
+
+What is proven, and what is not
+--------------------------------
+Proven: agreement of forward output and of gradients, per call, to numerical
+tolerance. NOT claimed: bitwise-identical training curves over a full run.
+Epsilon-greedy argmax ties and replay-buffer sampling amplify last-bit
+differences over tens of thousands of steps, so two functionally-equivalent
+Q-networks can still diverge in which actions get sampled and which
+transitions get stored. The training-level claim this module supports is
+equivalence IN DISTRIBUTION over seeds, not per-trajectory identity. Never
+state it more strongly than that.
+
+Weight and embedding conventions - kept identical on purpose
+--------------------------------------------------------------
+- Weight layout `(n_layers, 2, n_qubits)`, same as `build_skolik_qlayer`, so a
+  trained `TorchLayer`'s weights can be copied in directly
+  (`load_weights_from_torchlayer`).
+- Feature selection replicates `embeddings.angle_embedding` exactly: apply
+  `transform_fn` first: then, if `indices` is given, select those features (one
+  per wire); otherwise take the leading features if there are more of them
+  than wires; and CYCLE (`arange(n_wires) % n_data`) if there are fewer -
+  the same rule that puts each of CartPole's 4 features on 2 of Skolik's 8
+  wires.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Callable, Optional, Sequence
+
+import torch
+import torch.nn as nn
+
+__all__ = ["SU2SkolikEmulator"]
+
+
+def _apply_rx(v: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
+    """Bloch-vector rotation about the x-axis. v: (..., 3), theta: (...) broadcastable."""
+    x, y, z = v[..., 0], v[..., 1], v[..., 2]
+    c, s = torch.cos(theta), torch.sin(theta)
+    return torch.stack([x, c * y - s * z, s * y + c * z], dim=-1)
+
+
+def _apply_ry(v: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
+    x, y, z = v[..., 0], v[..., 1], v[..., 2]
+    c, s = torch.cos(theta), torch.sin(theta)
+    return torch.stack([c * x + s * z, y, -s * x + c * z], dim=-1)
+
+
+def _apply_rz(v: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
+    x, y, z = v[..., 0], v[..., 1], v[..., 2]
+    c, s = torch.cos(theta), torch.sin(theta)
+    return torch.stack([c * x - s * y, s * x + c * y, z], dim=-1)
+
+
+class SU2SkolikEmulator(nn.Module):
+    """Classical, exact emulator of `build_skolik_qlayer(..., ent=False)`.
+
+    Parameters mirror the PennyLane builder deliberately, so a call site can
+    swap one for the other without renaming anything:
+
+        build_skolik_qlayer(n_qubits, n_layers, emb_indices=..., transform_fn=..., ent=False)
+        SU2SkolikEmulator(n_qubits, n_layers, emb_indices=..., transform_fn=...)
+
+    `ent` is not a parameter here - see the module docstring for why.
+    """
+
+    def __init__(
+        self,
+        n_qubits: int,
+        n_layers: int,
+        emb_indices: Optional[Sequence[int]] = None,
+        transform_fn: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
+    ):
+        super().__init__()
+        self.n_qubits = int(n_qubits)
+        self.n_layers = int(n_layers)
+        self.emb_indices = list(emb_indices) if emb_indices is not None else None
+        self.transform_fn = transform_fn
+        # Same layout as build_skolik_qlayer's weight_shapes = {"weights": (n_layers, 2, n_qubits)}.
+        self.weights = nn.Parameter(torch.zeros(self.n_layers, 2, self.n_qubits))
+
+    def _embed(self, data: torch.Tensor) -> torch.Tensor:
+        """Reproduces embeddings.angle_embedding's feature selection exactly
+        (everything up to the AngleEmbedding template call, which RX below
+        replaces)."""
+        if self.transform_fn is not None:
+            data = self.transform_fn(data)
+        if not isinstance(data, torch.Tensor):
+            data = torch.as_tensor(data, dtype=torch.float32)
+
+        n_wires = self.n_qubits
+        n_data = data.shape[-1]
+
+        if self.emb_indices is not None:
+            if len(self.emb_indices) != n_wires:
+                raise ValueError(
+                    f"emb_indices length ({len(self.emb_indices)}) must equal "
+                    f"n_qubits ({n_wires})"
+                )
+            if max(self.emb_indices) >= n_data:
+                raise ValueError("an index in emb_indices is out of range for the data")
+            data = data[..., self.emb_indices]
+            n_data = n_wires
+        elif n_data > n_wires:
+            data = data[..., :n_wires]
+
+        if n_data < n_wires:
+            idx = torch.arange(n_wires, device=data.device) % n_data
+            data = data[..., idx]
+
+        return data
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        """inputs: (n_features,) or (B, n_features). Returns <Z_i>, shape (B, n_qubits)."""
+        if not isinstance(inputs, torch.Tensor):
+            inputs = torch.as_tensor(inputs, dtype=torch.float32)
+        squeeze = inputs.dim() == 1
+        if squeeze:
+            inputs = inputs.unsqueeze(0)
+
+        angles = self._embed(inputs)  # (B, n_qubits)
+        batch = angles.shape[0]
+
+        v = torch.zeros(batch, self.n_qubits, 3, dtype=angles.dtype, device=angles.device)
+        v = v.clone()
+        v[..., 2] = 1.0  # Bloch vector of |0> is (0, 0, 1)
+
+        for layer in range(self.n_layers):
+            v = _apply_rx(v, angles)                 # AngleEmbedding(rotation='X')
+            v = _apply_ry(v, self.weights[layer, 0])  # RY(weights[layer, 0, i])
+            v = _apply_rz(v, self.weights[layer, 1])  # RZ(weights[layer, 1, i])
+            # No CZ step: this module only ever represents ent=False.
+
+        z = v[..., 2]  # (B, n_qubits)
+        return z.squeeze(0) if squeeze else z
+
+    def load_weights_from_torchlayer(self, torch_layer: Any) -> None:
+        """Copy weights from a `qml.qnn.TorchLayer` built by
+        `build_skolik_qlayer(..., ent=False, ...)` with the same n_qubits/n_layers.
+
+        Guarded: raises if the source's weight tensor is not the shape this
+        emulator expects, rather than silently copying a mismatched tensor.
+        """
+        src = getattr(torch_layer, "weights", None)
+        if src is None:
+            raise AttributeError(
+                "torch_layer has no 'weights' parameter - is this really a "
+                "TorchLayer built by build_skolik_qlayer?"
+            )
+        if tuple(src.shape) != tuple(self.weights.shape):
+            raise ValueError(
+                f"weight shape mismatch: source {tuple(src.shape)} vs "
+                f"emulator {tuple(self.weights.shape)}"
+            )
+        with torch.no_grad():
+            self.weights.copy_(src.detach())

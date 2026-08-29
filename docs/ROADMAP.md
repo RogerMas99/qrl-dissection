@@ -154,6 +154,57 @@ eight. Measured throughput ~50 and ~25 steps/s on a CPU runtime.
 - **exp02 comparison target.** The paper's OR block is now available at 10 seeds
   (`Quantum_r{4,8,16,32}`, `Classical_r{4,8,16,32}`), so exp02 has a real
   comparator instead of a figure.
+- **SU(2) emulator (NEW-05).** Infrastructure and verification, not an
+  experimental arm. `core/su2_emulator.py` reproduces
+  `build_skolik_qlayer(ent=False)` exactly - see docs/CORRECTIONS.md#new-05
+  for why an unentangled, single-generator circuit is a product state and
+  therefore classically simulable in O(n_qubits x n_layers) via real Bloch
+  vectors instead of 2^n amplitudes. Depends on nothing and cheapens
+  everything downstream that trains an unentangled skolik-family arm, so it
+  goes BEFORE the Fourier ceiling below. The deliverable at this point is
+  `tests/test_su2_equivalence.py` (forward + gradient agreement to ~1e-6,
+  against a real `ent=True` circuit as the negative control) - not training
+  curves. Registering arms that use it to train faster is Phase B, deferred
+  until `core/configs.py` is next safe to edit (see the standing note above
+  on not touching the shared registry mid-grid).
+- **Additive Fourier ceiling (NEW-06).** A classical control arm, not
+  infrastructure - see docs/CORRECTIONS.md#new-06 for the derivation (Schuld,
+  Sweke & Meyer 2021, plus NEW-05's separability result) and the guard
+  against configurations it does not apply to (`hsiao`, and `dr` whenever
+  `n_qubits < n_data` - which includes the 2-qubit Salinas arm, not only the
+  1-qubit one). Depends on NEW-05's separability argument, not on NEW-05's
+  code. **FrozenLake Config B before CartPole**: the linear-model-on-bits
+  degeneracy (`linear_on_bits_ceiling`, pre-registered prediction P2 - depth
+  cannot rescue an unentangled circuit there, verified against the real
+  circuit in `tests/test_frozenlake_additive_ceiling.py`) makes it the
+  sharpest comparison in the study, with the hypothesis class characterised
+  analytically rather than by analogy. CartPole's version (exp06) is a
+  cheaper, lower-priority control - expect it to be inconclusive, since
+  CartPole is largely solvable by near-linear controllers already, and report
+  that as "the environment does not discriminate" rather than as a finding.
+  Arm registration and the two experiment scripts (exp05, exp06) are Phase B.
+- **Trained-agent spectrum (derived from NEW-06's spectrum measurement, not
+  implemented).** The per-frequency magnitude table in
+  `docs/CORRECTIONS.md#new-06` is measured at RANDOM, UNTRAINED weights - a
+  candidate explanation for exp03's depth-curve saturation (L=2 -> L=5), not
+  an established one, precisely because training could redistribute energy
+  toward high k instead of leaving the initialisation profile in place.
+  Extracting the same per-frequency coefficients from a TRAINED agent's
+  weights (any completed exp03/exp03b checkpoint that has them - training
+  currently does not save weights, see `docs/REUSE.md`'s "Model weights are
+  not saved" limitation, so this may need a small addition first) and
+  comparing against the initialisation spectrum is what would convert the
+  candidate explanation into a measurement.
+- **Input-scaling sweep (derived from NEW-06, not implemented).** Repeat the
+  spectrum extraction with an explicit input-scaling weight `w` fixed at
+  several values (the embedding becomes e.g. `2*atan(w*x)` in place of
+  `CartPoleNormalizationTransformer`'s fixed `2*atan(x)`), to test whether the
+  dominant harmonic shifts with `w`. Hypothesis: the scale of `arctan(w*x)`
+  determines which harmonic dominates. If confirmed, this measures the
+  relationship between a trainable input scaling and the effectively-used
+  spectrum - one of the reasons this mechanism is treated as important in the
+  expressivity literature (`docs/LITERATURE.md`, Schuld/Sweke/Meyer 2021), not
+  only an abstract accessibility argument.
 
 ## Adding an experiment
 
