@@ -113,6 +113,87 @@ depth should matter at all.
 learning".** NeurIPS.
 The on-policy side, where the dissection paper comes from.
 
+**Schuld, Sweke & Meyer (2021), "The effect of data encoding on the expressive
+power of variational quantum machine learning models".** *Phys. Rev. A* 103,
+032430. arXiv:2008.08605
+The basis for NEW-06 (`docs/CORRECTIONS.md#new-06`,
+`core/fourier_ceiling.py`). Central result: a data-reuploading circuit is, as
+a function of one input feature, a truncated Fourier series - the ENCODING
+gate's generator fixes which frequencies are reachable (L reuploads of a
+single-generator rotation give integer frequencies 1..L), the variational
+layers only fix the coefficients. Combined with the separability condition
+below, this gives an EXACT classical hypothesis class for an unentangled,
+one-feature-per-wire circuit, not an approximation or a capacity-matched
+guess.
+
+**Measured, not just derived: the accessible spectrum is reachable but not
+flat - at initialisation.** Extracting the fitted Fourier coefficients
+directly (`docs/CORRECTIONS.md#new-06`, `skolik`, L=5, random weights, 8
+draws x 4 wires) shows amplitude tapering toward the top frequency: k=5's
+maximum across all 32 draws (0.13) sits below k=4's mean (0.14), a clean,
+statistically solid drop. A mean-only reading also suggests a peak at k=2
+over k=1, but their ranges overlap almost entirely at only 8 draws, so that
+specific ordering is NOT established - only the general tapering-toward-the-
+top-frequency pattern is. Reachable is not the same as equally used - worth
+stating explicitly when citing this paper's "which frequencies" result, since
+the follow-on question ("how much does each one matter") is answered
+empirically here, not by the theorem alone.
+
+**Scope of the claim, stated plainly so chapter 2 does not overreach:** the
+weights measured are RANDOM and UNTRAINED - this describes the spectrum the
+architecture produces at initialisation, not the spectrum a trained agent
+ends up using; training could redistribute energy toward high k rather than
+leave the initialisation profile in place. The defensible statement is that
+the accessible spectrum is populated very unevenly at initialisation, and
+that this is a CANDIDATE explanation for why this project's depth sweeps
+(exp03, and any exp05/exp06 depth axis) show diminishing returns with L
+rather than linear gains - not an established one. Two follow-ups that would
+convert the candidate explanation into a measurement are recorded in
+`docs/ROADMAP.md`'s Named follow-ups, not yet implemented.
+
+### Separability - which circuits this applies to, verified against the code
+
+An unentangled circuit whose embedding puts one feature (or a wire-shared
+function of one feature) per wire produces a Q-value that is a SUM of
+independent per-wire functions - additive across the observation's features.
+Whether a given template is additive is a fact about its embedding, not about
+entanglement on its own, and it was checked against `src/simplyqrl/embeddings.py`
+and `qlayers.py` rather than assumed:
+
+| configuration | embedding | additive across features? |
+|---|---|---|
+| Skolik 8-qubit CartPole | `angle_embedding`, one feature per wire (cycled: `idx = arange(n_wires) % n_data`) | yes |
+| FrozenLake Config B (`frozen_binary_4q`) | `angle_embedding`, one bit per wire, exact fit | yes |
+| FrozenLake Config A (`frozen_scalar_1q`) | single scalar, one wire | trivially (nothing to separate) |
+| Hsiao (`emb_type="multi"`) | `multiple_rotation_embedding`: every wire receives ALL selected features via a non-commuting Z-Y-Z composition | **no**, at any qubit count |
+| Salinas/`dr`, whenever `n_qubits < n_data` | same `multiple_rotation_embedding` path (`build_dr_qlayer`'s own branch condition) | **no** - includes BOTH the 1-qubit and 2-qubit Salinas arms, not only 1-qubit |
+
+The Hsiao/Salinas non-additivity is not a wire-count fact ("three features
+share one wire") so much as a composition fact: `multiple_rotation_embedding`
+replicates the SAME selected features to EVERY wire, and Z-Y-Z Euler-angle
+composition mixes them non-linearly on each wire regardless of how many wires
+there are. `Hsiao et al. (2022)`'s own template is therefore outside the
+Fourier ceiling's scope as derived here - not a criticism of their design
+(the paper argues *for* dropping entanglement on robustness grounds, a
+different and separately fair argument - see the closing paragraph below),
+just a statement about which analytical tool applies where.
+
+### The tension worth stating plainly, without adversarial framing
+
+Unentangled architectures are motivated in this literature by robustness to
+NISQ noise and to barren plateaus (McClean et al. 2018 above), not by a claim
+of matching classical models' expressivity. So what currently survives on
+real hardware is, in a specific and checkable sense, precisely the part that
+does not need a quantum computer to simulate. That is not "the approach is
+worthless" - an unentangled PQC may still be a good, parameter-efficient
+model with a useful inductive bias, and NEW-06's own claim discipline
+(`docs/CORRECTIONS.md#new-06`) says exactly this: if a circuit beats the
+Fourier ceiling, the honest reading is inductive bias or optimisation, not
+expressivity, because the ceiling's coefficients are strictly freer than the
+circuit's own (unitarity-constrained) ones. State the tension, cite the
+NISQ-robustness motivation fairly, and let the measurements carry the
+argument from there.
+
 ### 4 — context
 
 **"A Survey on Quantum Reinforcement Learning".** arXiv:2211.03464 **[checked]**
@@ -129,7 +210,11 @@ trend.
 - The Salinas/UQC template has never been run under DQN here. The dissection
   paper's DR block contrasts two embedding philosophies; exp03 sweeps depth on
   one of them. So exp03 tests DR *depth* transfer, not the embedding contrast
-  the paper drew its conclusion from.
+  the paper drew its conclusion from. It is also outside NEW-06's Fourier
+  ceiling (see the separability table above - `n_qubits < n_data` routes
+  through the non-additive embedding at both registered Salinas qubit
+  counts), so a Fourier-ceiling comparison for that template would need a
+  different basis, not an extension of exp05/exp06's.
 - `Hsiao_OR_r{4,16}_{Ent,Unent}` has no counterpart here - exp01 studied
   capacity, not entanglement on/off.
 

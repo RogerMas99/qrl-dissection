@@ -716,3 +716,57 @@ robustness. This run also fills `frozen_scalar_1q_L1`'s two missing seeds
 (1, 2) as a side effect of requesting seeds 1-3 with the reuse guard active.
 Results pending; this section will be updated on completion.
 
+---
+
+## Experiment 05 - the additive Fourier ceiling on FrozenLake Config B - to run
+
+Design: `docs/EXPERIMENT-05.md`. Classical control arm (NEW-06), sharpening
+the entanglement contrast exp04's Config B already carries
+(`frozen_binary_4q_L{1,5}` vs `frozen_binary_4q_noent_L{1,5}`, the latter
+registered but not yet run) with an exact, non-capacity-matched ceiling on
+what an unentangled circuit could express there at all.
+
+Pre-registered analytical result, verified against the real circuit before
+any exp05 cell runs (docs/CORRECTIONS.md#new-06,
+`tests/test_frozenlake_additive_ceiling.py`, all passing):
+
+| check | result |
+|---|---|
+| each `<Z_i>` takes exactly two values, keyed by `b_i` | holds at L = 1, 2, 5 |
+| affine-in-bits residual (max abs, float32) | < 1e-4 at every tested L |
+| residual growth with L (P2) | none |
+| negative control, `ent=True`, L=5 | residual > 0.05 |
+
+`core/su2_emulator.py` (NEW-05) and `core/fourier_ceiling.py` (NEW-06) exist
+and are tested. Arm registration and the grid script are Phase B - blocked
+until `core/configs.py` is next safe to edit (see the standing note in
+`docs/ROADMAP.md`; exp04b was running when this was written).
+
+| arm | FIX-01 | best success (MA-100) | greedy_best |
+|---|---|---|---|
+| `frozen_binary_4q_L1` | on | | |
+| `frozen_binary_4q_L5` | on | | |
+| `frozen_binary_4q_noent_L1` | on | | |
+| `frozen_binary_4q_noent_L5` | on | | |
+| ceiling (linear-on-bits) | n/a | | |
+
+Reading:
+
+---
+
+## Experiment 06 - the additive Fourier ceiling on the CartPole Skolik sweep - to run
+
+Design: `docs/EXPERIMENT-06.md` (stub). Priority 2, behind exp05 - expected
+outcome is inconclusive (CartPole is largely solvable by near-linear
+controllers already, so the additive ceiling is probably not the binding
+constraint), to be reported as "the environment does not discriminate", not
+as a null finding. Arm registration and the grid script are Phase B.
+
+| arm | | best_ma50 | greedy_best |
+|---|---|---|---|
+| `hybrid_fig4` (`ent=True`) | | | |
+| `hybrid_fig4_noent` | | | |
+| ceiling (Fourier, general form) | | | |
+
+Reading:
+

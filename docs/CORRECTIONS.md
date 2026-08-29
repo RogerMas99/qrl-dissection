@@ -220,6 +220,277 @@ Manifest per run, skip-if-done on restart, results written outside the
 repository. Upstream flushes its episode CSV once per episode, so an interrupted
 run still leaves a usable partial learning curve.
 
+## NEW-05 - exact classical (SU(2)) emulator of the unentangled `skolik` circuit
+
+**Not a correction. Infrastructure and verification for exp05/exp06.**
+
+### Why this is possible at all
+
+`build_skolik_qlayer(..., ent=False)` (`src/simplyqrl/qlayers.py`) applies
+only single-wire gates - the embedding rotation, `RY`, `RZ` - to a circuit
+that starts in the product state `|0>^n`. A product state acted on only by
+single-qubit unitaries stays a product state: there is no two-qubit gate for
+it to entangle through. Each qubit's state is therefore exactly described,
+throughout, by its Bloch vector - a real 3-vector - and `<Z_i>` is that
+vector's z-component. `core/su2_emulator.py::SU2SkolikEmulator` implements
+this directly: `n_qubits` independent Bloch vectors updated by real 3x3
+rotations, O(n_qubits * n_layers), no complex amplitudes, no 2^n scaling.
+
+It deliberately does **not** accept an `ent` argument. `ent=True` inserts CZ
+gates, which entangle - an entangled two-qubit state cannot be described by
+two independent Bloch vectors, so there is no flag to add here. That absence
+is what makes the negative control below meaningful.
+
+### Evidence
+
+`tests/test_su2_equivalence.py` copies weights from a real
+`qml.qnn.TorchLayer` (built by `build_skolik_qlayer(ent=False)`) into the
+emulator and compares, on random batches:
+
+| check (batch=16, `torch.manual_seed(0)`) | `skolik_8q_cartpole_L5` | `frozen_binary_4q_L1` | `frozen_binary_4q_L5` | `frozen_scalar_1q_L5` |
+|---|---|---|---|---|
+| forward, max abs diff | 2.38e-7 | 0.0 (exact) | 1.79e-7 | 8.94e-8 |
+| gradient wrt weights, max abs diff (`.mean()` reduction over the batch - `.sum()` inflates float32 rounding by the same factor without testing anything different) | 1.12e-8 | 5.82e-11 | 2.98e-8 | 5.96e-8 |
+| negative control: same weights, REAL `ent=True` circuit vs the emulator, max abs diff | 1.2974 | 0.9034 | 1.6308 | skipped - `ent=True` is not a valid circuit at 1 qubit (`CZ(wires=[0,0])`, a self-loop PennyLane rejects; see `core/configs.py`'s comment on Config A) |
+
+- **Feature-selection paths**: both the cycling branch (CartPole's 4 features
+  onto Skolik's 8 wires, `idx = arange(8) % 4`) and the explicit-`emb_indices`
+  branch are covered (a fifth, 3-qubit case not shown above).
+- **Negative control** disagrees by 0.90-1.63 depending on configuration -
+  four to five orders of magnitude above the positive-case forward tolerance,
+  which is what gives the positive checks their power.
+- **Throughput**, measured on the machine that ran this: skolik_8q_L5,
+  batch 32, PennyLane `lightning.qubit` 188 ms/call vs the emulator 0.53
+  ms/call - about 353x. Reported, not asserted against a threshold, and it
+  moves run to run with system load (an earlier measurement this session read
+  445x under a lighter load); PQC throughput varies several-fold across this
+  project's own machines regardless (see `docs/REUSE.md`), so a number from
+  one run is a data point, not a claim.
+
+### Claim discipline - state this exactly, nowhere stronger
+
+Proven: agreement of forward output and gradients, per call, to numerical
+tolerance. **Not** proven or claimed: bitwise-identical training curves over
+a full run. Epsilon-greedy argmax ties and replay-buffer sampling amplify
+last-bit differences over tens of thousands of steps, so two
+functionally-identical Q-networks can still diverge in which actions get
+sampled and which transitions get stored. The training-level claim this
+module supports is equivalence **in distribution over seeds**, never
+per-trajectory identity.
+
+### Scope
+
+Verification and infrastructure only. Numbers in the main results tables
+(exp05, exp06) come from the real PennyLane path; anything the emulator
+itself produces is labelled as such wherever it is reported, never left to
+be inferred from context. Registering arms that USE the emulator to train
+faster (`su2_cartpole_L5`, `su2_frozen_binary_4q_L{1,5}`, ...) is deferred to
+when `core/configs.py` is next safe to edit - see the standing note in
+`docs/ROADMAP.md`.
+
+## NEW-06 - the additive Fourier ceiling
+
+**Not a correction. A classical control arm, sharpening what exp05/exp06 can
+attribute to the circuit versus to its embedding's accessible frequency
+spectrum. Nothing here criticises the reference paper, SimplyQRL or Hsiao et
+al. - these are additional controls, not an audit.**
+
+### The argument
+
+Schuld, Sweke & Meyer (2021) - see `docs/LITERATURE.md` - establish that a
+data-reuploading circuit is, as a function of one input feature, a truncated
+Fourier series: the ENCODING gate's generator fixes which frequencies are
+reachable, the variational layers only fix the coefficients. Combined with
+NEW-05's separability result: on a `skolik`-style circuit whose embedding
+puts one feature per wire, at reuploading depth L, the UNENTANGLED circuit's
+accessible function class per wire is exactly
+
+    f(z) = w_0 + sum_{k=1}^{L} [ a_k cos(k z) + b_k sin(k z) ]
+
+`core/fourier_ceiling.py::FourierAdditiveCeiling` builds that basis directly
+(a linear head over `{cos(kz), sin(kz)}_{k=1..L}`, per wire, concatenated -
+the head's own bias supplies the k=0 term). Any unentangled, one-feature-per-
+wire circuit's reachable class is a SUBSET of what this head represents (same
+frequencies, and the head's coefficients are free real numbers where the
+circuit's are constrained by unitarity), so if a circuit ever beats this
+ceiling on held-out performance, the honest reading is inductive bias or an
+optimisation effect - **not** expressivity. State it that way; see
+`docs/LITERATURE.md` for the full citation and the barren-plateau /
+NISQ-robustness motivation for unentangled circuits, argued fairly rather
+than dismissed.
+
+### Guarded, not assumed applicable
+
+`check_additive_embedding(circ_type, n_qubits, n_data)` raises rather than
+silently building a ceiling that does not bound anything:
+
+- `circ_type="hsiao"` (`emb_type="multi"`): every wire receives all three
+  selected features via a non-commuting Z-Y-Z composition
+  (`embeddings.multiple_rotation_embedding`) - not additive across features,
+  at any qubit count.
+- `circ_type="dr"` **whenever `n_qubits < n_data`** - verified against
+  `build_dr_qlayer`'s own branch condition, not assumed from the brief's
+  "1-qubit" shorthand: this is the SAME `multiple_rotation_embedding` path,
+  and it fires for BOTH `paper_salinas_1q_*` and `paper_salinas_2q_*`
+  (`n_data` is CartPole's raw 4, computed before any index selection, so
+  `n_qubits=2 < 4` also qualifies). The guard checks the structural
+  condition, not a name list, so this does not need updating if a third
+  Salinas qubit count is ever registered.
+
+### The FrozenLake Config B degeneracy - verified against the real circuit,
+### not just algebraically
+
+`FrozenBasisToAngleTransformer` maps each bit to `{0, pi}`. On that
+two-point domain `sin(k*{0,pi}) = 0` for every integer k - the sine features
+carry no information at any L - and `cos(k*{0,pi})` is `1 - 2b` for odd k,
+the constant `1` for even k. The entire `2L`-dimensional feature set per wire
+collapses to ONE informative direction, independent of L: pre-registered
+prediction **P2**. `core/fourier_ceiling.py::linear_on_bits_ceiling` builds
+that degenerate case directly - 5 parameters per action (4 bits + bias),
+never `2*L*n_qubits+1` carrying mostly-zero, mostly-redundant columns.
+
+`tests/test_frozenlake_additive_ceiling.py` checks this against the REAL
+circuit, not against the ceiling module (which is that hypothesis class by
+construction and would prove nothing about `build_skolik_qlayer` itself):
+enumerates FrozenLake's 16 states, evaluates the 4-qubit unentangled circuit
+on all of them, and fits `Z = B.W + c` by least squares. Measured:
+
+| check | result |
+|---|---|
+| each `<Z_i>` takes exactly two values, keyed by `b_i` | holds at L = 1, 2, 5 |
+| affine-in-bits residual, L=1 | 1.78e-15 |
+| affine-in-bits residual, L=2 | 1.89e-15 |
+| affine-in-bits residual, L=5 | 8.88e-16 |
+| residual growth with L (**P2**) | none - all three at lstsq machine-precision level, no trend |
+| negative control, `ent=True`, L=2 | 0.4149 |
+| negative control, `ent=True`, L=5 | 0.7978 |
+
+(L=1's `ent=True` negative control is not meaningful: FIX-07 makes `ent` a
+no-op at depth 1 on this template, so there is no entangled circuit to
+contrast against there - both L=2 and L=5 above sit thirteen to fourteen
+orders of magnitude above the positive cases.)
+
+**P1 and P2 both hold, against the real circuit, before exp05 spends any
+compute on them.**
+
+### The general (continuous-domain) claim, verified separately
+
+The FrozenLake check above is a two-point special case. The underlying claim
+is stronger and domain-independent (Schuld, Sweke & Meyer 2021,
+`docs/LITERATURE.md`): for FIXED weights, `<Z_i>(x)` is EXACTLY a degree-L
+trigonometric polynomial in the embedded feature x, for any x, not only
+`x in {0, pi}`. `tests/test_fourier_ceiling_spectrum.py` checks this directly
+- sample x densely over one full RX period, fit `{1, cos(kx), sin(kx) : k =
+1..L}` by least squares, and require the residual to (a) be near-zero for the
+full basis and (b) become clearly nonzero once the TOP frequency `k=L` is
+dropped.
+
+**Revised after an initial version of this test gave a marginal ~1e-3 on the
+`ent=True` negative control** (fixed weight seed, all 4 wires driven by the
+SAME shared x). Diagnosis: with every wire seeing an identical scalar, the
+whole system has only one true degree of freedom, so even the ENTANGLED
+circuit collapses back to *some* Fourier series in x - a higher-degree one,
+but the fit could still partially absorb it (residual dropped from 0.19 to
+0.0053 just by raising the fit degree from 5 to 10, confirming it was "too
+few independent inputs to probe entanglement", not "not a Fourier series").
+Fixed by sweeping ONE wire's feature while drawing the OTHER wires'
+features INDEPENDENTLY AT RANDOM per sample - the design that actually lets
+entanglement show up as a genuine failure of the univariate fit - and by
+requiring the assertion to hold across the WORST of `N_DRAWS=8` fixed weight
+seeds (mean over the 4 swept-qubit measurements per draw), not one draw:
+a wider 30-draw calibration found individual (draw, qubit) pairs with a
+near-zero top-frequency coefficient purely by chance (as low as 3.3e-5 on the
+truncated-basis check), which a single-seed test could have hit by luck in
+either direction.
+
+| check (4 qubits, `N_SAMPLES=300` per sweep, `N_DRAWS=8` fixed seeds, relative residual = RMS(fit residual) / std(signal), worst draw reported) | result |
+|---|---|
+| full basis `k=1..L`, `ent=False` (positive) | 4.8e-8 to 1.29e-7 across L in {1,2,5} |
+| truncated basis `k=1..L-1`, `ent=False` (negative control 1: proves frequency L is really used) | 0.0211 (L=5) to 1.0000 (L=1) |
+| full basis `k=1..L`, `ent=True`, independent-others sampling (negative control 2) | 0.2908 (L=2) to 0.9771 (L=5) - three orders of magnitude firmer than the pre-fix ~1e-3 |
+| unentangled circuit, independent-others sampling, sanity check | 4.8e-8 to 1.29e-7 - identical to the shared-x case, confirming the fix isolates entanglement rather than just making every test harder |
+
+This is the test that matters most for exp06 (CartPole): FrozenLake's domain
+is exactly two points, so its degeneracy is a special case worth knowing but
+not evidence the general basis is sized correctly. This one is.
+
+### Measured mechanism: the spectrum is concentrated at low-to-mid frequency, not flat
+
+Motivated by a pattern in the table above: the truncated-basis negative
+control weakens sharply with depth (1.00 at L=1, down to 0.021-0.072 at
+L=5) even though it always stays well clear of the floor. That is consistent
+with the circuit reaching frequency L (the positive check already proves it
+does) while spending LESS amplitude on that top frequency as L grows -
+checked directly by extracting the fitted Fourier coefficients from the
+same full-basis fit `test_fourier_ceiling_spectrum.py` already performs
+(`sqrt(a_k^2 + b_k^2)` per frequency, `L=5`, mean and spread over the 8
+weight draws x 4 swept qubits = 32 values per `k`):
+
+| k (frequency) | mean magnitude | std | min | max |
+|---|---|---|---|---|
+| 1 | 0.3703 | 0.1941 | 0.0313 | 0.7921 |
+| 2 | 0.4427 | 0.1886 | 0.0906 | 0.7971 |
+| 3 | 0.2788 | 0.1270 | 0.0903 | 0.6438 |
+| 4 | 0.1364 | 0.1146 | 0.0093 | 0.4758 |
+| 5 | 0.0305 | 0.0323 | 0.0005 | 0.1307 |
+
+**Read min-max before mean, not instead of it - the two stated patterns are
+not equally solid.**
+
+- **k=4 -> k=5 decay: robust.** The MAXIMUM of k=5 across all 32 draws
+  (0.1307) sits BELOW the MEAN of k=4 (0.1364) - the luckiest k=5 draw still
+  does not reach the average k=4 draw. That is a real separation, not an
+  artefact of the mean hiding spread.
+- **k=2 above k=1: NOT established.** Their ranges overlap almost entirely
+  (k=1: 0.0313-0.7921; k=2: 0.0906-0.7971) - the mean ordering (0.4427 vs
+  0.3703) is consistent with a peak at k=2, but with 8 draws this sits inside
+  the overlap and must not be stated as a finding. "Amplitude peaks at
+  low-to-mid frequency and tapers toward the top one" is defensible from this
+  table; "the peak is at k=2 specifically" is not.
+
+This is a **measured mechanism**, not a hypothesis, for the tapering part:
+with random weights, `n_layers` reuploads of a fixed-generator rotation make
+frequency L *accessible* (the positive check), but do not allocate it equal
+*weight* - amplitude concentrates at low-to-mid frequency and tapers toward
+the newest one, and the k=4/k=5 step is the part of that claim with a clean
+statistical margin behind it.
+
+**The scope-limiting caveat, and the one that matters most: these are RANDOM,
+UNTRAINED weights.** The table describes the spectrum the architecture
+produces AT INITIALISATION, not the spectrum a trained agent actually uses -
+training could redistribute energy toward high k rather than leave the
+initialisation profile in place. **The defensible claim is that the
+accessible spectrum is populated very unevenly at initialisation, and that
+this is a CANDIDATE explanation for the depth-curve saturation (L=2 -> L=5 in
+exp03), not an established one.** Confirming it needs the two follow-ups now
+recorded in `docs/ROADMAP.md`'s Named follow-ups (extracting the spectrum
+from TRAINED agents, and sweeping an input-scaling weight to test whether the
+dominant harmonic moves) - neither implemented yet. Belongs in the framing
+chapter alongside the Schuld/Sweke/Meyer citation (`docs/LITERATURE.md`), with
+this same qualification carried over, not left behind - a reader of the
+memoria's chapter 2 should not walk away with a stronger claim than the data
+supports.
+
+### Open sizing question - flagged, not decided here
+
+NEW-02's matching recipe (`core/capacity.py::match_hidden_width`) solves for
+a hidden width that spends AT LEAST a reference arm's measured budget,
+because that control has a free capacity knob. This ceiling does not: its
+parameter count (`2*n_qubits*n_layers*n_actions` in general, `5*n_actions` on
+the FrozenLake Config B degeneracy) is not a design choice, it is the exact
+size of the circuit's accessible hypothesis class - inflating it would stop
+the comparison from bounding THIS circuit's expressivity. Confirm before
+exp05/exp06 report anything: the ceiling's parameter count is reported
+alongside the hybrid arm's for context, not matched to it.
+
+### Scope
+
+Additions only - a new classical control, not a correction to upstream or to
+any already-published number in this repo. Arm registration (sizing each
+ceiling instance against its specific hybrid arm and wiring it into
+`core/configs.py`) is Phase B, deferred until the shared registry is safe to
+edit - see `docs/ROADMAP.md`.
+
 ---
 
 ## FIX-05
