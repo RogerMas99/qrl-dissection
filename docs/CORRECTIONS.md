@@ -1068,6 +1068,35 @@ PPO's actions come from its own trained `Categorical` distribution, which
 IS seeded via `torch.manual_seed`. Grepped, not assumed:
 `grep -n "action_space.sample" src/simplyqrl/ppo.py` returns nothing.
 
+**Temporal scope: exploration-only, and it shrinks over the run.** The
+unseeded sampler is reached exclusively through the `if random.random() <
+epsilon:` branch - it is never touched on a greedy step. `epsilon` itself
+follows `linear_schedule(start_e, end_e, duration, t)` with this project's
+defaults (`start_e=1.0`, `end_e=0.05`, `exploration_fraction=0.5`, none
+overridden by exp04's `DQN_KWARGS`): epsilon decays linearly from 1.0 to
+0.05 over the first HALF of `total_timesteps`, then sits flat at 0.05 for
+the rest. So the divergence between two nominally-identical-seed runs is
+**maximal at the start of training** (epsilon near 1.0, almost every action
+is the unseeded draw) and **narrows as epsilon decays** (only ~1 in 20
+actions is unseeded once epsilon reaches 0.05) - it is not a constant-rate
+drift across the whole run.
+
+**Candidate (not established) explanation for a result already in this
+repo: Config A's bimodal spread at L=5.** `frozen_scalar_1q_L5`'s three
+coverage seeds land at best_ma 0.08, 0.80, 0.04
+(`docs/RESULTS-LOG.md`'s exp04 stage-2 table: IQM 0.307, CI 0.040-0.800) -
+one seed roughly ten times the other two, not a tight cluster. FrozenLake
+delivers its only reward bit exclusively at the goal, so WHICH early
+successes happen to land in the replay buffer plausibly shapes everything
+that follows - and, by the mechanism above, that is exactly the part of
+training (epsilon near 1.0, near the start) where this unseeded sampler's
+influence is largest. This is a **candidate** explanation, explicitly not
+an established one: it would need instrumenting when the first successful
+transition enters the buffer for each seed and correlating that timing
+against final performance, which has not been done. Do not cite this as the
+cause of the spread without that check. Follow-up recorded in
+`docs/ROADMAP.md`, not implemented here.
+
 **Does not invalidate any reported number.** Every claim in this project is
 already IQM + a percentile bootstrap CI over N seeds (`docs/STATISTICS.md`),
 never a single run's trajectory - and because the unseeded draw comes from OS
