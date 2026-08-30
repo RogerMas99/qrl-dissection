@@ -6,7 +6,7 @@ because the guarantee it implied did not hold until FIX-08.
 ## What one cell writes
 
 A *cell* is one (arm, seed, FIX-01 state, tag) combination. Running it produces
-four files:
+five files:
 
 | file | content | size |
 |---|---|---|
@@ -14,11 +14,23 @@ four files:
 | `runs/<run>.csv` | every episode: step, return, length | ~200 KB |
 | `runs/<run>_eval.csv` | greedy evaluation at each checkpoint | ~1 KB |
 | `<run>_trace.npy` | the FIX-01 probe trace, per-step phantom flags | ~100 KB |
+| `<run>_weights.pt` | the ONLINE network's `state_dict()`, one write, after training finishes | a few KB |
 
 The git revision matters more than it looks: it is what lets you tell, months
 later, whether a number was produced before or after a correction landed.
 
-**Model weights are not saved.** That is a deliberate limit, discussed below.
+**UPDATE 2026-08-30 - model weights are now saved, narrowly.** A single
+`torch.save(dqn.q_network.state_dict(), ...)` after training finishes -
+recorded at `outcome.extra["weights_path"]` (optional field, so manifests
+from before this change parse exactly as they always did). No optimiser
+state, no replay buffer, no exploration-schedule position, no RNG streams.
+**This does not change point 3 below at all** - a saved `state_dict` lets a
+FINISHED policy be inspected or reused for inference (e.g. extracting a
+trained circuit's Fourier spectrum, `docs/ROADMAP.md`'s NEW-06 follow-ups);
+it does not make a run resumable, because everything point 3 says is missing
+(buffer, optimiser, epsilon position, RNG streams) still is. Cells run
+BEFORE this change have no weights file - re-running them for that reason
+alone is not automatically warranted.
 
 ## Three kinds of reuse, and which ones exist
 

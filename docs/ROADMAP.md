@@ -164,9 +164,11 @@ eight. Measured throughput ~50 and ~25 steps/s on a CPU runtime.
   goes BEFORE the Fourier ceiling below. The deliverable at this point is
   `tests/test_su2_equivalence.py` (forward + gradient agreement to ~1e-6,
   against a real `ent=True` circuit as the negative control) - not training
-  curves. Registering arms that use it to train faster is Phase B, deferred
-  until `core/configs.py` is next safe to edit (see the standing note above
-  on not touching the shared registry mid-grid).
+  curves. **UPDATE 2026-08-30: arms registered.** `su2_cartpole_L5`,
+  `su2_frozen_scalar_1q_L5`, `su2_frozen_binary_4q_L{1,5}` - see
+  docs/CORRECTIONS.md#new-05's "Arm registration (Phase B)" for the dispatch
+  mechanism (`core/compat.py::_patch_new_agent_types`, following FIX-03's own
+  wrap-don't-modify pattern) and the measured parameter-count table.
 - **Additive Fourier ceiling (NEW-06).** A classical control arm, not
   infrastructure - see docs/CORRECTIONS.md#new-06 for the derivation (Schuld,
   Sweke & Meyer 2021, plus NEW-05's separability result) and the guard
@@ -182,7 +184,11 @@ eight. Measured throughput ~50 and ~25 steps/s on a CPU runtime.
   cheaper, lower-priority control - expect it to be inconclusive, since
   CartPole is largely solvable by near-linear controllers already, and report
   that as "the environment does not discriminate" rather than as a finding.
-  Arm registration and the two experiment scripts (exp05, exp06) are Phase B.
+  **UPDATE 2026-08-30: arm registration done** - `cartpole_fourier_ceiling_L5`
+  and `frozen_binary_4q_fourier_ceiling` (no L suffix: provably L-independent
+  on Config B), see docs/CORRECTIONS.md#new-06. The two experiment scripts
+  (exp05, exp06) are still pending - exp05 (FrozenLake) first, per the
+  priority above.
 - **Trained-agent spectrum (derived from NEW-06's spectrum measurement, not
   implemented).** The per-frequency magnitude table in
   `docs/CORRECTIONS.md#new-06` is measured at RANDOM, UNTRAINED weights - a
@@ -190,11 +196,18 @@ eight. Measured throughput ~50 and ~25 steps/s on a CPU runtime.
   an established one, precisely because training could redistribute energy
   toward high k instead of leaving the initialisation profile in place.
   Extracting the same per-frequency coefficients from a TRAINED agent's
-  weights (any completed exp03/exp03b checkpoint that has them - training
-  currently does not save weights, see `docs/REUSE.md`'s "Model weights are
-  not saved" limitation, so this may need a small addition first) and
-  comparing against the initialisation spectrum is what would convert the
-  candidate explanation into a measurement.
+  weights and comparing against the initialisation spectrum is what would
+  convert the candidate explanation into a measurement. **UPDATE
+  2026-08-30: weights are now saved.** `dqn/safe.py::SafeDQN.train()` writes
+  the online network's `state_dict()` (a single write, after training - no
+  optimiser state, no replay buffer, not resumption support) to
+  `<run_name>_weights.pt` alongside the other cell artefacts, recorded at
+  `outcome.extra["weights_path"]` (optional field, so manifests from before
+  this change keep parsing fine). Only cells run AFTER this change have it -
+  exp03/exp03b's existing checkpoints do not, and re-running them only for
+  their weights is not warranted by this alone. `docs/REUSE.md`'s "Model
+  weights are not saved" note is updated to describe the narrower current
+  scope, not reversed - this is still not resumption support.
 - **Input-scaling sweep (derived from NEW-06, not implemented).** Repeat the
   spectrum extraction with an explicit input-scaling weight `w` fixed at
   several values (the embedding becomes e.g. `2*atan(w*x)` in place of

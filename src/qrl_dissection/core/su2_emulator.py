@@ -65,7 +65,7 @@ from typing import Any, Callable, Optional, Sequence
 import torch
 import torch.nn as nn
 
-__all__ = ["SU2SkolikEmulator"]
+__all__ = ["SU2SkolikEmulator", "SU2HybridAgent"]
 
 
 def _apply_rx(v: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
@@ -189,3 +189,106 @@ class SU2SkolikEmulator(nn.Module):
             )
         with torch.no_grad():
             self.weights.copy_(src.detach())
+
+
+# ---------------------------------------------------------------------------
+# [NEW-05] SU2HybridAgent - a DQN Q-network built exactly like
+# `simplyqrl.agents.HybridAgent(circ_type="skolik", ent=False, is_qnet=True)`,
+# with `SU2SkolikEmulator` in place of the real PennyLane `TorchLayer`.
+#
+# Not a new architecture: reproduces HybridAgent's is_qnet construction line
+# for line - [PQC layer] -> [OutputReuse if reuse_repetitions>1] ->
+# [pi_arch Linear+activation]* -> [final Linear] -> [OutputScale if
+# requested] - reusing upstream's own OutputReuse/OutputScale rather than
+# reimplementing them, so a config built for `hybrid_fig4`/`frozen_binary_4q_*`
+# etc. can be pointed at "su2" unchanged and produce the same-shaped network,
+# just without a quantum simulator underneath. Dispatched via
+# `core/compat.py`'s agent_type extension; see docs/CORRECTIONS.md#new-05.
+#
+# Deliberately guarded rather than permissive on circ_type/ent: silently
+# emulating an entangled circuit as unentangled would be exactly the kind of
+# assumed-not-checked mistake this project exists to avoid.
+# ---------------------------------------------------------------------------
+class SU2HybridAgent(nn.Module):
+    """Q-network agent whose PQC layer is `SU2SkolikEmulator`.
+
+    Only DQN Q-networks are supported (``is_qnet=True``): no actor-critic
+    construction exists here, because no NEW-05 arm needs one.
+
+    Config keys read (same names/semantics as `HybridAgent`): ``net_arch``,
+    ``activation``, ``n_qubits``, ``n_layers_q``, ``emb_indices``,
+    ``transform_fn``, ``reuse_repetitions``, ``use_output_scaling``,
+    ``output_scale_init``. ``circ_type`` must be ``"skolik"`` (or absent) and
+    ``ent`` must be falsy (or absent) - anything else raises, rather than
+    silently emulating a circuit this class cannot represent.
+    """
+
+    def __init__(self, obs_dim: int, act_dim: int, config: dict, is_qnet: bool = True):
+        super().__init__()
+        if not is_qnet:
+            raise ValueError(
+                "SU2HybridAgent only supports is_qnet=True (DQN Q-networks); "
+                "no actor-critic construction exists."
+            )
+        circ_type = config.get("circ_type", "skolik")
+        if circ_type != "skolik":
+            raise ValueError(
+                f"SU2HybridAgent only emulates circ_type='skolik' "
+                f"(SU2SkolikEmulator's only regime); got circ_type={circ_type!r}."
+            )
+        if config.get("ent", False):
+            raise ValueError(
+                "SU2HybridAgent only emulates ent=False (unentangled skolik) - "
+                "an entangled two-qubit state is not describable as independent "
+                "Bloch vectors. See this module's docstring."
+            )
+
+        # Lazy: keeps this module importable without the quantum stack
+        # (mirrors dqn/safe.py's own lazy-import discipline). OutputReuse and
+        # OutputScale are reused from upstream rather than reimplemented.
+        from simplyqrl.agents import OutputReuse, OutputScale
+
+        net_arch = config.get("net_arch", {"pi": [], "vf": []})
+        if isinstance(net_arch, dict):
+            pi_arch = net_arch.get("pi", [])
+        elif isinstance(net_arch, list):
+            pi_arch = net_arch
+        else:
+            raise ValueError("net_arch must be either a dict or a list")
+
+        activation = config.get("activation", nn.ReLU)
+        n_qubits = int(config.get("n_qubits", 4))
+        n_layers_q = config.get("n_layers_q", 1)
+        self.n_qubits = n_qubits
+        self.reuse_repetitions = config.get("reuse_repetitions", 1)
+
+        self.q_layer = SU2SkolikEmulator(
+            n_qubits,
+            n_layers_q,
+            emb_indices=config.get("emb_indices", None),
+            transform_fn=config.get("transform_fn", None),
+        )
+
+        layers: list = [self.q_layer]
+        if self.reuse_repetitions > 1:
+            layers.append(OutputReuse(self.reuse_repetitions))
+            prev_dim = n_qubits * self.reuse_repetitions
+        else:
+            prev_dim = n_qubits
+
+        for size in pi_arch:
+            layers.append(nn.Linear(prev_dim, size))
+            layers.append(activation())
+            prev_dim = size
+        layers.append(nn.Linear(prev_dim, act_dim))
+
+        # Unlike upstream's HybridAgent (FIX-02), this is new code: appended
+        # correctly the first time, no post-hoc patch needed.
+        if config.get("use_output_scaling", False):
+            init_val = config.get("output_scale_init", 2.0)
+            layers.append(OutputScale(act_dim, init_val))
+
+        self.network = nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.network(x)

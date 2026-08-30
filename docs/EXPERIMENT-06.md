@@ -5,7 +5,11 @@
 yet written)
 **Status:** stub — priority 2, behind exp05. See `docs/ROADMAP.md`'s Named
 follow-ups entry for the dependency ordering (NEW-05 before NEW-06 before
-either experiment; exp05 before exp06).
+either experiment; exp05 before exp06). **UPDATE 2026-08-30: arm
+registration done** — `cartpole_fourier_ceiling_L5` (`fourier_additive`, 162
+params) and `su2_cartpole_L5` (`su2`, 126 params — see §1 below for why this
+serves as the "noent counterpart" this doc originally called for) are
+registered in `core/configs.py`. The grid script is the only piece left.
 
 ---
 
@@ -31,9 +35,27 @@ sharp comparison — that is exp05.
 ## 1. Design (sketch, to be filled out before Phase B)
 
 - Arms: `hybrid_fig4` (the reference Skolik 8q circuit, `ent=True`), its
-  `noent` counterpart (not yet registered — needs adding alongside the
-  ceiling in Phase B), the Fourier ceiling sized to `n_qubits=8`,
-  `n_layers=hybrid_fig4`'s `n_layers_q`, `n_actions=2`.
+  `noent` counterpart, and the Fourier ceiling sized to `n_qubits=8`,
+  `n_layers=hybrid_fig4`'s `n_layers_q`, `n_actions=2`
+  (`cartpole_fourier_ceiling_L5`).
+
+  **The `noent` counterpart is `su2_cartpole_L5`, not a second real-PQC
+  arm.** `hybrid_fig4` is 8 qubits at 100k steps — the expensive regime in
+  this repo ("can run for hours", `docs/REUSE.md`). NEW-05's whole point is
+  that an unentangled `skolik` circuit is exactly reproducible by
+  `SU2SkolikEmulator` without a quantum simulator
+  (docs/CORRECTIONS.md#new-05, ~350x faster measured on this machine), so
+  spending real PQC compute on an 8-qubit `ent=False` run here would be
+  paying the expensive regime's cost for a result NEW-05 already predicts to
+  1e-6 per call. `su2_cartpole_L5` is `HYBRID_FIG4` with `ent` forced False,
+  same `net_arch`/`activation`/`n_qubits`/`n_layers_q` — same architecture,
+  no quantum simulator underneath (`core/configs.py`, measured 126 trainable
+  parameters, identical to `hybrid_fig4`'s own count). If a reviewer wants a
+  real-PQC noent anchor point too, `paper_skolik_8q_L5` (`ARMS`, already
+  registered, `ent=True` by its own default — pass `ent=False` via
+  `paper_skolik_config` before reusing it) is the closest existing
+  alternative; not included in this design by default because it would
+  reintroduce the expensive-regime cost NEW-05 exists to avoid.
 - `check_additive_embedding("skolik", 8, n_data=4)` — passes; CartPole's
   Skolik embedding is the cycling case NEW-05's equivalence test already
   covers (`skolik_8q_cartpole_L5`), so no new embedding logic is needed here,

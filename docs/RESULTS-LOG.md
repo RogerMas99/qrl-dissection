@@ -716,6 +716,130 @@ robustness. This run also fills `frozen_scalar_1q_L1`'s two missing seeds
 (1, 2) as a side effect of requesting seeds 1-3 with the reuse guard active.
 Results pending; this section will be updated on completion.
 
+### UPDATE 2026-08-30 - stage 2 results so far, H1/H2 reading, and a methodological finding about the greedy metric
+
+**Status: PARTIAL. `frozen_scalar_1q_L15` has n=1 (not interpretable alone -
+seed2 was lost to a session restart mid-run and is rehearsing from scratch,
+seed3 not started). `frozen_binary_4q_noent_L{1,5}` have n=0 - never
+launched despite being part of the original stage-2 design
+(`docs/EXPERIMENT-04.md` section 4's ablation row). Do not read this table as
+closed.**
+
+| arm | n | best_ma (max, biased) IQM (CI) | `final_performance` IQM (CI) | greedy IQM (CI) | phantom frac |
+|---|---|---|---|---|---|
+| `frozen_scalar_1q_L1` | 10 | 0.048 (0.040, 0.057) | 0.000 (0.000, 0.000) | 0.000 (0.000, 0.000) | 0.0338 |
+| `frozen_scalar_1q_L5` | 3 | 0.307 (0.040, 0.800) | 0.110 (0.000, 0.305) | 0.000 (0.000, 0.000) | 0.0397 |
+| `frozen_scalar_1q_L10` | 3 | 0.480 (0.060, 0.780) | 0.199 (0.000, 0.387) | 0.000 (0.000, 0.000) | 0.0430 |
+| `frozen_scalar_1q_L15` | 1 - N/A | 0.080 | 0.008 | 0.000 | 0.0486 |
+| `frozen_binary_4q_L1` (ent=True) | 3 | 0.033 (0.030, 0.040) | 0.000 (0.000, 0.000) | 0.000 (0.000, 0.000) | 0.0297 |
+| `frozen_binary_4q_L5` (ent=True) | 3 | 0.993 (0.980, 1.000) | 0.948 (0.943, 0.953) | **1.000 (1.000, 1.000)** | 0.0876 |
+| `frozen_binary_4q_noent_L1` | 0 | - | - | - | - |
+| `frozen_binary_4q_noent_L5` | 0 | - | - | - | - |
+
+**Methodological finding: what `greedy IQM = 0.000` means here is a
+separation between the LEARNED VALUE and the INDUCED POLICY, not "the agent
+learned nothing."** `FrozenLake-v1` with `is_slippery=False` is fully
+deterministic, so a greedy (epsilon=0) policy either reaches the goal, falls
+in a hole, or enters a cycle and burns the full `max_episode_steps=100`
+without either. The Q-network can carry real, structured value information
+(large, non-degenerate Q's across states) while its **argmax** - the induced
+policy - still falls, by a small margin, on the side of an absorbing
+zero-reward loop rather than any path to the goal. Diagnosis is direct, not
+inferred from the aggregate numbers alone: retrained `frozen_scalar_mlp_large`
+seed=1 fresh (classical, cheap - minutes) with the online network's weights
+now genuinely saved (`_weights.pt`, see the weight-saving update above) and
+inspected the resulting policy and its Q-values directly.
+
+**Revision of an earlier, now-unreproducible description.** An earlier
+diagnosis of this same arm (before weight-saving existed, in a standalone
+script whose artefacts do not survive between sessions) reported a two-state
+0<->4 cycle (DOWN then UP) with a ~0.01-0.02 Q-gap. Re-running the identical
+spec (same arm, seed, `DQN_KWARGS`, `total_timesteps`) with weights this time
+actually saved does **not** reproduce that specific trajectory - `simplyqrl`'s
+`DQN(seed=...)` does not appear to pin every source of randomness a script
+draws on before construction, so "same seed" is not "bit-identical run"
+here. What follows below is the freshly verified replacement: a **different**
+specific trap, same general mechanism, backed by an artefact that is
+actually reproducible now (the saved `.pt`, not a description of one).
+
+Measured, this session (`frozen_scalar_mlp_large__fix01on__s1`, retrained,
+weights saved and loaded back for inspection):
+
+| state | Q(LEFT, DOWN, RIGHT, UP) | argmax | gap (top1-top2) |
+|---|---|---|---|
+| 0 (start) | 18.451, 18.386, **18.887**, 18.368 | RIGHT | 0.436 |
+| 1 | 18.449, 0.038, **18.835**, 18.524 | RIGHT | 0.311 |
+| 2 | 18.667, 18.457, **18.800**, 18.534 | RIGHT | 0.134 |
+| 3 | 18.676, 0.254, **18.841**, 18.508 | RIGHT | 0.165 |
+
+A greedy rollout from `reset()` (verified by stepping the real simulator, not
+assumed): `0 --RIGHT--> 1 --RIGHT--> 2 --RIGHT--> 3`, then RIGHT forever - the
+4x4 grid clips a RIGHT at the last column, so state 3 is a **self-loop under
+this policy** (`state 3 --RIGHT--> state 3`, verified against the simulator).
+
+**The two diagnoses are mechanically the same finding, not one finding
+described twice.** Different specific trajectories, same structural cause -
+put side by side, that is the point:
+
+| | earlier session (unreproducible, description only) | this session (reproduced, weights saved) |
+|---|---|---|
+| trap | 2-state cycle: `0 <-> 4` (DOWN, then UP) | 1-state self-loop: `0->1->2->3`, then `3->3` (RIGHT against the grid edge) |
+| trapping argmax | DOWN at state 0 / UP at state 4 | RIGHT at state 3 |
+| top1-top2 Q-gap at the trapping state | ~0.01-0.02 (unverifiable now) | 0.165 |
+| Q magnitude at that state | not recorded | ~18.7 |
+| gap as a fraction of magnitude | order 0.1% (if the number holds) | **0.9%** |
+| escaped by epsilon-greedy during training? | not measured then | yes - measured below |
+
+Two independent instances of "the deterministic argmax gets trapped by a
+sub-1%-of-magnitude margin, in a deterministic sparse-reward environment" are
+worth more than one instance that happens to be exactly repeatable - a single
+lucky (or unlucky) run inflates the risk that "0.01-0.02" was itself a
+coincidence of that one training trajectory, not a property of the regime.
+Two DIFFERENT traps, arrived at independently, both showing the identical
+signature (large structured Q-values, argmax decided by well under 1% of
+that magnitude, in a domain where determinism turns "close" into "wrong
+forever") is the stronger claim, not a weaker one. **The general claim - the
+induced policy is trapped by a hairline argmax decision the learned VALUES do
+not obviously call for - is what is robust here, not any one trajectory or
+gap number; do not requote "0<->4" or "0.01-0.02" as if they were this run's
+numbers.**
+
+Training-time (epsilon-greedy) behaviour, from the same run's episode CSV,
+last 300 episodes (`length` recovered as `diff(global_step)`, since the CSV
+records `episode_n, ep_reward, global_step` and not length directly). This is
+the quantification of the value/policy dissociation, not a footnote to it -
+tabulated, not just described:
+
+| outcome (last 300 training episodes) | share |
+|---|---|
+| hits the full 100-step cap (greedy trap, or close to it, survives exploration too) | 43.7% |
+| terminates before the cap - falls in a hole | 54.7% |
+| terminates before the cap - reaches the goal | 1.7% |
+| **terminates before the cap, total** | **56.3%** |
+
+Epsilon-greedy exploration is measurably, substantially changing the outcome
+distribution relative to what the deterministic argmax policy alone would
+produce (100% stuck, by construction, every episode) - it is not merely
+adding noise around a policy that already terminates: it is the mechanism
+that lets more than half of training episodes end at all.
+
+**Consequence for how this environment's return should be read.** Training
+return under epsilon-greedy conflates policy quality with exploration noise
+in general (this is why NEW-03's greedy hook exists at all), but in a
+DETERMINISTIC environment with sparse reward the effect is sharper than
+usual: exploration is not just adding variance around a real policy, it can
+be the ONLY thing standing between the agent and an infinite loop. This
+reinforces - with a mechanism, not just a metric preference - using
+`greedy_best` as the PRIMARY reported statistic in FrozenLake, as
+`docs/EXPERIMENT-04.md` already specifies. A reader comparing
+`frozen_scalar_1q_L5`'s best_ma of 0.307 against its greedy of 0.000 should
+read the gap as "epsilon-greedy noise is escaping a cycle the trained policy
+itself cannot," not as ordinary training-vs-evaluation variance.
+
+`frozen_binary_4q_L5` is the exception that fits the pattern from the other
+side: its greedy IQM is a clean 1.000, so whatever it converged to is NOT a
+degenerate cycle - the only arm in this table where that is true.
+
 ---
 
 ## Experiment 05 - the additive Fourier ceiling on FrozenLake Config B - to run
@@ -738,17 +862,22 @@ any exp05 cell runs (docs/CORRECTIONS.md#new-06,
 | negative control, `ent=True`, L=5 | residual > 0.05 |
 
 `core/su2_emulator.py` (NEW-05) and `core/fourier_ceiling.py` (NEW-06) exist
-and are tested. Arm registration and the grid script are Phase B - blocked
-until `core/configs.py` is next safe to edit (see the standing note in
-`docs/ROADMAP.md`; exp04b was running when this was written).
+and are tested. **UPDATE 2026-08-30: arm registration and the grid script are
+done** (`experiments/exp05_dqn_frozenlake_classical_ceiling.py`,
+`docs/CORRECTIONS.md#new-05`'s "Arm registration (Phase B)"). Not yet run for
+real - `--ladder-only` and `--smoke` verified the script; the coverage pass
+(3 seeds) is queued behind the exp04 relaunch finishing (`--claim` makes them
+safe to interleave, but this repo's convention is one grid at a time, not
+parallel, on one machine).
 
-| arm | FIX-01 | best success (MA-100) | greedy_best |
-|---|---|---|---|
-| `frozen_binary_4q_L1` | on | | |
-| `frozen_binary_4q_L5` | on | | |
-| `frozen_binary_4q_noent_L1` | on | | |
-| `frozen_binary_4q_noent_L5` | on | | |
-| ceiling (linear-on-bits) | n/a | | |
+| arm | FIX-01 | best_ma (max, biased) | `final_performance` | greedy_best |
+|---|---|---|---|---|
+| `frozen_binary_4q_L1` | on | | | |
+| `frozen_binary_4q_L5` | on | | | |
+| `frozen_binary_4q_noent_L1` | on | | | |
+| `frozen_binary_4q_noent_L5` | on | | | |
+| `frozen_binary_4q_fourier_ceiling` | on | | | |
+| `frozen_matched_scalar` | on | | | |
 
 Reading:
 
@@ -756,17 +885,22 @@ Reading:
 
 ## Experiment 06 - the additive Fourier ceiling on the CartPole Skolik sweep - to run
 
-Design: `docs/EXPERIMENT-06.md` (stub). Priority 2, behind exp05 - expected
-outcome is inconclusive (CartPole is largely solvable by near-linear
-controllers already, so the additive ceiling is probably not the binding
-constraint), to be reported as "the environment does not discriminate", not
-as a null finding. Arm registration and the grid script are Phase B.
+Design: `docs/EXPERIMENT-06.md`. Priority 2, behind exp05 - expected outcome
+is inconclusive (CartPole is largely solvable by near-linear controllers
+already, so the additive ceiling is probably not the binding constraint), to
+be reported as "the environment does not discriminate", not as a null
+finding. **UPDATE 2026-08-30: arm registration and the grid script are
+done** (`experiments/exp06_dqn_cartpole_classical_ceiling.py`). `hybrid_fig4`
+already has n=10 on disk at this exact spec (`results/exp01_dqn_cartpole_capacity`,
+100k steps) - reused, not retrained; `su2_cartpole_L5` and
+`cartpole_fourier_ceiling_L5` are the only new compute, and both are cheap.
+Not yet run for real - queued behind exp05.
 
-| arm | | best_ma50 | greedy_best |
+| arm | best_ma (max, biased) | `final_performance` | greedy_best |
 |---|---|---|---|
 | `hybrid_fig4` (`ent=True`) | | | |
-| `hybrid_fig4_noent` | | | |
-| ceiling (Fourier, general form) | | | |
+| `su2_cartpole_L5` (noent counterpart, see docs/EXPERIMENT-06.md §1) | | | |
+| `cartpole_fourier_ceiling_L5` | | | |
 
 Reading:
 

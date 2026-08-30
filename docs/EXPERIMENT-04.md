@@ -180,6 +180,66 @@ here. The primary training metric is the **success rate**: a 100-episode rolling
 mean of `ep_reward`, directly interpretable as the fraction of recent episodes
 reaching the goal. `greedy_best` stays the primary reported metric, as in exp01.
 
+**UPDATE 2026-08-30 - a mechanism for why this matters more here than in
+exp01: a separation between the LEARNED VALUE and the INDUCED POLICY, not
+"the agent learned nothing."** `docs/RESULTS-LOG.md`'s exp04 stage-2 update
+diagnoses directly (retrained a cheap arm fresh, with weights now genuinely
+saved and inspected, not inferred from aggregate numbers) why `greedy IQM`
+sits at 0.000 across most stage-2 arms despite real, non-spike training
+success (`final_performance` up to 0.199-0.305): `FrozenLake-v1` with
+`is_slippery=False` is fully deterministic, so a deterministic (epsilon=0)
+policy either reaches the goal, falls in a hole, or enters an absorbing CYCLE
+and burns the full `max_episode_steps=100` doing neither. The Q-network's
+VALUES need not be degenerate for this to happen - `frozen_scalar_mlp_large`
+carries large, structured Q's (~18-19) across every state - it is the
+**argmax**, the induced policy, that falls, by a razor-thin margin (measured:
+0.165 out of ~18.7 at the trapping state, under 1%), on the side of a
+zero-reward absorbing loop rather than any path to the goal. See
+`docs/RESULTS-LOG.md`'s exp04 stage-2 update for the exact Q-value table and
+the verified greedy rollout.
+
+**Two independent instances, not one repeated description.** A from-scratch
+re-run of the identical spec (same arm, seed, `DQN_KWARGS`,
+`total_timesteps`) landed in a DIFFERENT specific trap than an earlier
+session's now-unreproducible description - `0<->4` (DOWN/UP) there,
+`0->1->2->3` then a self-loop at 3 (RIGHT against the grid edge) here. That
+is `docs/CORRECTIONS.md#fix-10`: `DQN(seed=...)` never seeds epsilon-greedy's
+action sampler, so this project's reproducibility is statistical (N seeds, an
+IQM, a CI), not bit-identical - re-running one nominal seed is not guaranteed
+to replay the same trajectory. Rather than a weakness, two DIFFERENT traps
+showing the SAME signature (large, structured Q-values; argmax decided by
+well under 1% of that magnitude; a deterministic domain that turns "close" at
+one step into "wrong forever") is stronger evidence for the mechanism than
+one exactly-repeatable instance would have been - it is not one lucky
+coincidence, it is the regime.
+
+Under epsilon-greedy TRAINING this matters concretely, not just in
+principle - quantified, not just described, from the same run's last 300
+training episodes (`length` recovered as `diff(global_step)`):
+
+| outcome (last 300 training episodes) | share |
+|---|---|
+| hits the full 100-step cap (the trap survives exploration too) | 43.7% |
+| terminates early - falls in a hole | 54.7% |
+| terminates early - reaches the goal | 1.7% |
+| **terminates before the cap, total** | **56.3%** |
+
+Exploration measurably escapes the trap the deterministic policy alone could
+never leave - more than half of training episodes end at all only because of
+it, not merely with more variance around a policy that already terminated.
+
+**Why this belongs in the metric discussion, not just the results log:** in a
+deterministic environment with sparse reward, exploration noise is not
+merely adding variance around a real policy the way it does in exp01's
+CartPole - it can be the only thing standing between the agent and an
+infinite loop. Training return under epsilon-greedy therefore partly measures
+EXPLORATION, not policy quality, more sharply here than in most RL
+benchmarks. This is the mechanistic argument for why `greedy_best` must be
+the primary reported statistic in this environment, with more reason than in
+CartPole (not merely a preference, as the paragraph above already states) -
+and a caution for reading any `best_ma`/`final_performance` number here
+without its `greedy` counterpart alongside it.
+
 ### Staging
 
 Compute is spent only after the regime is shown alive — the failure that cost
@@ -245,6 +305,26 @@ than dressed up as circuit-vs-classical.
 > confirmed, not contradicted — but it changes what H4 can be asked of *at this
 > depth*: "does the circuit beat an equal-budget classical net" is unanswerable
 > when both are dead, exactly as the paragraph above already said it would be.
+>
+> **UPDATE 2026-08-30 — the same table, recalculated with `final_performance`
+> alongside the biased maximum.** A re-read of the same stage-1 manifests
+> already on disk (n=10 each, `fix01=on`, no retraining) — `best_ma (max)` is
+> the number the table above reports; `final_performance` is the mean over the
+> last 10% of episodes, the unbiased counterpart (`docs/STATISTICS.md`):
+>
+> | arm | n | best_ma (max, biased) IQM (CI) | `final_performance` IQM (CI) |
+> |---|---|---|---|
+> | `frozen_onehot_mlp` (liveness gate) | 10 | 1.000 (0.998, 1.000) | 0.949 (0.946, 0.955) |
+> | `frozen_matched_scalar` (fair control) | 10 | 0.052 (0.037, 0.087) | 0.001 (0.000, 0.013) |
+> | `frozen_scalar_1q_L1` (Config A, L=1) | 10 | 0.048 (0.040, 0.057) | 0.000 (0.000, 0.000) |
+>
+> `frozen_onehot_mlp` barely moves (1.000 → 0.949): a genuinely alive,
+> sustained policy, not a training-curve spike. `frozen_matched_scalar` and
+> `frozen_scalar_1q_L1` collapse almost to zero (0.052 → 0.001, 0.048 → 0.000):
+> the ~5% the biased maximum reported was itself mostly a lucky peak, not
+> sustained performance — the "chance" reading in the paragraph above was, if
+> anything, too generous. This sharpens H4's already-stated conclusion; it
+> does not change it.
 >
 > **What changes going forward.** The useful question at Config A is no longer
 > circuit-vs-classical; it is whether **depth (L = 5, 10, 15) rescues the scalar
