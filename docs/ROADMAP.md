@@ -218,6 +218,23 @@ eight. Measured throughput ~50 and ~25 steps/s on a CPU runtime.
   spectrum - one of the reasons this mechanism is treated as important in the
   expressivity literature (`docs/LITERATURE.md`, Schuld/Sweke/Meyer 2021), not
   only an abstract accessibility argument.
+- **First-success buffer timing vs. final performance (derived from FIX-10,
+  not implemented).** `docs/CORRECTIONS.md#fix-10`'s unseeded exploration
+  sampler is reached only on epsilon-greedy steps, and epsilon decays from
+  1.0 to 0.05 over the first half of training - so its influence on which
+  transitions enter the replay buffer is largest early and shrinks as
+  training proceeds. On FrozenLake, where the only reward bit is delivered
+  at the goal, this is a CANDIDATE (not established) explanation for
+  `frozen_scalar_1q_L5`'s bimodal coverage-seed spread (best_ma 0.08, 0.80,
+  0.04 - one seed roughly 10x the other two). Checking it needs
+  instrumenting `ReplayBuffer.add` (or the probe already wired in via
+  `AutoresetProbe.on_step`) to record the global step at which the first
+  `reward=1` transition is stored, per seed, and correlating that timing
+  against `final_performance` across a robustness-sized seed set - not done
+  here. If confirmed, it would be a second, DQN-specific mechanism (on top
+  of FIX-01's phantom transitions) by which off-policy training on sparse
+  reward is sensitive to exploration randomness FIX-10 shows is not under
+  `seed=`'s control.
 
 ## Adding an experiment
 
