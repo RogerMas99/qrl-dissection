@@ -20,6 +20,8 @@ paper's published results at all.
 | [FIX-07](#fix-07) | `ent` is a no-op at depth 1 on the `skolik` template | YES - one published contrast is vacuous |
 | [FIX-08](#fix-08) | a shorter finished run silently satisfied a longer request | ours, not upstream's |
 | [FIX-09](#fix-09) | exp02's migrated manifests could not distinguish hybrid from classical | ours, not upstream's - and it silently defeats the OR block's own comparison |
+| [FIX-10](#fix-10) | `DQN(seed=...)` never seeds epsilon-greedy's action sampler | No - reproducibility here was always statistical (N seeds, IQM, CI), never bit-identical |
+| [FIX-11](#fix-11) | `SafeDQN`'s weight-saving crashed after training finished, on a relative `--outdir` | Ours, not upstream's - would have silently wasted every cell's compute on the FIRST real run using any experiment script's documented default invocation |
 
 ---
 
@@ -280,13 +282,13 @@ per-trajectory identity.
 
 ### Scope
 
-Verification and infrastructure only. Numbers in the main results tables
-(exp05, exp06) come from the real PennyLane path; anything the emulator
-itself produces is labelled as such wherever it is reported, never left to
-be inferred from context. Registering arms that USE the emulator to train
-faster (`su2_cartpole_L5`, `su2_frozen_binary_4q_L{1,5}`, ...) is deferred to
-when `core/configs.py` is next safe to edit - see the standing note in
-`docs/ROADMAP.md`.
+Verification and infrastructure, primarily. Numbers in the main results
+tables (exp05, exp06) come from the real PennyLane path; anything the
+emulator itself produces is labelled as such wherever it is reported, never
+left to be inferred from context. **UPDATE 2026-08-30 - arms registered.**
+See "Arm registration (Phase B)" below, under NEW-06, for both NEW-05's and
+NEW-06's arms together (they were wired into `core/configs.py` and
+`core/compat.py` in the same change).
 
 ## NEW-06 - the additive Fourier ceiling
 
@@ -483,13 +485,84 @@ the comparison from bounding THIS circuit's expressivity. Confirm before
 exp05/exp06 report anything: the ceiling's parameter count is reported
 alongside the hybrid arm's for context, not matched to it.
 
+### Arm registration (Phase B) - UPDATE 2026-08-30
+
+Both NEW-05 and NEW-06 are now wired into the same registry every other arm
+uses, with **six new arms, zero existing arms touched** (`core/configs.py`'s
+`ARMS` dict is append-only here, matching the standing rule against editing
+an already-run arm's spec - see the NEW-02/FIX-09 discussion above for why).
+
+**The dispatch mechanism.** `core/compat.py::_patch_new_agent_types` follows
+FIX-03's own pattern exactly: it wraps whatever `simplyqrl.agents.build_agent`
+already is (after FIX-03's alias patch) and intercepts three NEW agent_type
+strings this project defines - `"su2"`, `"fourier_additive"`,
+`"linear_on_bits"` - constructing `SU2HybridAgent` / `FourierAdditiveCeiling`
+/ `linear_on_bits_ceiling` directly. Anything else is passed straight through
+UNCHANGED to the function `build_agent` already was, so FIX-03's own code is
+never touched and no existing agent_type string's behaviour can change. This
+is a structural guarantee, not just an intention: `run_arm`'s reuse guard
+(`dqn/runner.py::reuse_or_none`) compares stored specs to the requested one
+and returns a cached manifest WITHOUT ever calling `build_arm_config` or
+`build_agent` on a reuse hit - so this patch cannot affect whether an
+already-completed cell reuses, only what a NEW cell with a NEW agent_type
+builds. Empirically checked, not just argued: replaying all 83
+already-completed exp04/exp04b manifests' own stored specs through
+`run_arm(force=False)` after this change landed - 83/83 reuse hits, zero
+mismatches, zero unexpected writes (a run that would have retrained).
+
+**`SU2HybridAgent`** (`core/su2_emulator.py`) mirrors `HybridAgent`'s
+`is_qnet=True` construction line for line - PQC layer, `OutputReuse` if
+`reuse_repetitions > 1`, `pi_arch` linear+activation stack, final `Linear`,
+`OutputScale` if requested - reusing upstream's own `OutputReuse`/
+`OutputScale` rather than reimplementing them, with `SU2SkolikEmulator` in
+place of the real `TorchLayer`. Guarded, not permissive: raises on
+`circ_type != "skolik"` or `ent=True` rather than silently emulating a
+circuit it cannot represent (see NEW-05 above for why `ent=True` has no
+emulator path at all).
+
+**The six arms**, and measured trainable parameter counts (`--ladder-only`,
+this machine):
+
+| arm | agent_type | params | mirrors / bounds |
+|---|---|---|---|
+| `su2_cartpole_L5` | su2 | 126 | `hybrid_fig4` (8q, L5) with `ent` forced False - **exactly matches** `hybrid_fig4`'s own 126, since it is the identical architecture |
+| `su2_frozen_scalar_1q_L5` | su2 | 18 | `frozen_scalar_1q_L5` (1q, L5, already `ent=False`) - matches its 18 exactly |
+| `su2_frozen_binary_4q_L1` | su2 | 28 | `frozen_binary_4q_noent_L1` (4q, L1, `ent=False`) - matches its 28 exactly |
+| `su2_frozen_binary_4q_L5` | su2 | 60 | `frozen_binary_4q_noent_L5` (4q, L5, `ent=False`) - matches its 60 exactly |
+| `cartpole_fourier_ceiling_L5` | fourier_additive | 162 | `hybrid_fig4` (126 params) - NOT matched, see "Open sizing question" above; `2*8*5*2+2` |
+| `frozen_binary_4q_fourier_ceiling` | linear_on_bits | 20 | every `frozen_binary_4q_{noent_,}L{1,5}` - **no L suffix on purpose**: `5*n_actions=20`, provably independent of L (the Config B degeneracy above) |
+
+The exact-match column for the four `su2_*` arms is not a coincidence to note
+in passing - it is `tests/test_new_agent_types.py`'s own regression pin
+(`test_su2_arm_matches_reference_hybrid_param_count`), because a future
+change to either construction path that broke this equality would mean the
+"same architecture, no quantum simulator" claim had quietly stopped being
+true.
+
+`frozen_binary_4q_fourier_ceiling`'s config carries FrozenLake's
+`transform_fn` marker (`"frozen_binary"`, resolved to
+`FrozenBasisToAngleTransformer` by `core/configs.py::_resolve_transform`,
+same as every other `frozen_*` arm) even though `linear_on_bits_ceiling`'s
+own docstring says it wants raw bits `{0,1}`, not the transformer's
+`{0, pi}`-scaled output: `linear_on_bits_ceiling` now takes an optional
+`transform_fn` (new parameter, default `None` - the bare-`nn.Linear` case
+used by nothing else stays unchanged) and wraps the head in
+`_TransformedLinear` when given one, so the arm can consume FrozenLake's raw
+scalar state like every other arm rather than requiring a caller to
+pre-extract bits. The `{0,pi}` vs `{0,1}` rescaling does not change the
+hypothesis class - an affine model absorbs a fixed input scale into its
+weights - so reusing the same transformer the real circuit uses is exact, not
+an approximation.
+
+Everything above is verified in `tests/test_new_agent_types.py` (18 tests:
+existing-dispatch non-regression, guard behaviour for all three new types,
+the six arms' resolution, the parameter-count equalities in the table) plus
+the standalone 83/83 reuse-guard replay described above.
+
 ### Scope
 
 Additions only - a new classical control, not a correction to upstream or to
-any already-published number in this repo. Arm registration (sizing each
-ceiling instance against its specific hybrid arm and wiring it into
-`core/configs.py`) is Phase B, deferred until the shared registry is safe to
-edit - see `docs/ROADMAP.md`.
+any already-published number in this repo.
 
 ---
 
@@ -908,3 +981,203 @@ longer finished run does not satisfy a shorter request either, since every metri
 here is computed over the whole trace.
 
 Full account of what is and is not reusable: `docs/REUSE.md`.
+
+---
+
+## FIX-10
+
+**`DQN(seed=...)` does not fix every source of randomness a training run
+draws on. Two runs at the same nominal seed can diverge - this project's
+reproducibility is statistical (N seeds, IQM, a bootstrap CI), never
+bit-identical, and no claim here should be read as promising the latter.**
+
+Found while trying to elevate an informal diagnosis (docs/RESULTS-LOG.md's
+exp04 stage-2 greedy-loop finding) into cited evidence: a from-scratch
+retrain at the identical spec - same arm, same `seed=1`, same `DQN_KWARGS`,
+same `total_timesteps` - landed the greedy policy in a **different** trap
+than an earlier session's now-unreproducible description (`0<->4` DOWN/UP vs.
+`0->1->2->3` then a self-loop at 3). That discrepancy is itself the finding,
+not a mistake to quietly paper over.
+
+### Mechanism
+
+`simplyqrl.dqn.DQN.__init__` seeds three generators up front:
+
+```python
+random.seed(self.seed)
+np.random.seed(self.seed)
+torch.manual_seed(self.seed)
+```
+
+then builds the vectorised environment via `simplyqrl.envs.make_vec_env`,
+whose per-env factory calls `env.reset(seed=seed + idx)` - which seeds the
+environment's OWN internal RNG (`env.np_random`, used for stochastic
+dynamics and random initial states) - but never `env.action_space.seed(...)`.
+`gymnasium.spaces.Discrete` does not inherit its RNG from `env.np_random`,
+`np.random`, or `random`: it lazily creates its own `np.random.Generator`
+from **OS entropy** the first time `.sample()` (or `.np_random`) is touched,
+unless `.seed()` was called on it explicitly. Epsilon-greedy exploration
+draws exactly that way:
+
+```python
+# simplyqrl/dqn.py, the training loop
+if random.random() < epsilon:
+    actions = np.array(
+        [self.envs.single_action_space.sample() for _ in range(self.envs.num_envs)]
+    )
+```
+
+so **every exploratory action DQN takes is drawn from a generator no `seed=`
+argument reaches.** An older, unused factory in the same file
+(`make_env`, lines 22-34) does call `env.action_space.seed(seed)` - but
+`DQN.__init__` calls `make_vec_env`, not `make_env`, so that seeding line is
+dead code on the path actually taken.
+
+### Evidence
+
+Three separate process invocations, identical seeding calls, identical
+`make_vec_env` construction, comparing the resulting action-space samples:
+
+```python
+random.seed(1); np.random.seed(1); torch.manual_seed(1)
+envs = make_vec_env(base="FrozenLake-v1", num_envs=1, seed=1)
+[envs.single_action_space.sample() for _ in range(10)]
+
+run 1: [3, 0, 2, 1, 0, 2, 2, 0, 0, 0]
+run 2: [1, 3, 2, 3, 1, 1, 0, 2, 0, 0]
+run 3: [3, 2, 2, 1, 2, 1, 0, 3, 3, 0]
+```
+
+Three different sequences from the identical nominal seed - `_np_random is
+not None` confirms the Space WAS seeded, just not from anything `seed=1`
+reaches. The other three candidate culprits checked and ruled out by reading
+the code (not assumed clean):
+
+| candidate | seeded? | where |
+|---|---|---|
+| weight initialisation | yes | `torch.manual_seed` runs before `build_agent(...)` constructs the network; nothing consumes torch's RNG in between |
+| replay buffer sampling order | yes | `ReplayBuffer.sample` uses `np.random.randint`, the seeded global NumPy stream |
+| argmax tie-breaking | not RNG-based | `torch.argmax` is a deterministic function of its input tensor |
+| the environment's own dynamics / initial state | yes | `env.reset(seed=...)` seeds `env.np_random`, the generator `gym.Env.reset`/`step` actually use |
+| **action-space sampling (epsilon-greedy exploration)** | **no** | confirmed above |
+
+### Scope
+
+**DQN only.** `simplyqrl.ppo.PPO` never calls `.action_space.sample()` -
+PPO's actions come from its own trained `Categorical` distribution, which
+IS seeded via `torch.manual_seed`. Grepped, not assumed:
+`grep -n "action_space.sample" src/simplyqrl/ppo.py` returns nothing.
+
+**Does not invalidate any reported number.** Every claim in this project is
+already IQM + a percentile bootstrap CI over N seeds (`docs/STATISTICS.md`),
+never a single run's trajectory - and because the unseeded draw comes from OS
+entropy rather than anything correlated with the requested `seed=`, each
+nominal seed's exploration is still a genuinely independent sample, which is
+exactly what the N-seed statistics need. What it removes is a narrower
+guarantee nothing in this project actually depended on: that re-running
+`seed=3` later reproduces the SAME trajectory. It does not. State this
+explicitly rather than let a reader assume it from the word "seed":
+**reproducibility here is statistical (the distribution over 10 seeds, with
+its interval), not bit-identical (one seed's own curve, replayed).**
+
+Left unfixed on purpose, per the brief that produced this entry: this is a
+registry entry, not a patch. Fixing it (calling
+`self.envs.single_action_space.seed(seed)` early in `DQN.__init__`) would
+also retroactively change what "seed=N" means for every number already in
+`docs/RESULTS-LOG.md` - worth doing deliberately, in its own change, not as
+a side effect of writing this entry.
+
+---
+
+## FIX-11
+
+**`SafeDQN.train()` crashed AFTER training finished, on a relative `--outdir`
+- the documented default for every experiment script in this repo - losing
+all of that cell's compute with nothing recorded.**
+
+Found by the mechanism that exists to find exactly this: `experiments/
+exp05_dqn_frozenlake_classical_ceiling.py --smoke` (no `--outdir` given, so
+the argparse default `results/exp04_dqn_frozenlake_embeddings/_smoke`, a
+RELATIVE path, was in effect) crashed on its very first cell, right after
+upstream printed `Training finished!`. Every prior check of this session's
+weight-saving change (`tests/test_weight_saving.py`, a hand-run diagnostic
+retrain) happened to use an ABSOLUTE `outdir` - pytest's `tmp_path` fixture,
+or an explicit absolute scratch path - so none of them exercised the branch
+that actually broke.
+
+### Mechanism
+
+`SafeDQN.train()` changes into `self.outdir` for the duration of training,
+because upstream writes `runs/{run_name}.csv` relative to cwd (the
+comment on that line explains why: a per-episode flush that survives a
+Colab disconnect):
+
+```python
+try:
+    os.chdir(self.outdir)
+    ...
+    dqn.train(total_timesteps=total_timesteps, progress_bar=progress_bar)
+
+    weights_path = self.outdir / f"{self.run_name}_weights.pt"   # <- bug
+    torch.save(dqn.q_network.state_dict(), weights_path)
+    ...
+finally:
+    os.chdir(cwd)
+```
+
+`weights_path` is built INSIDE the `os.chdir`'d window, from `self.outdir` -
+which, before this fix, was stored exactly as passed in, relative or not. A
+RELATIVE `self.outdir` is a path relative to the ORIGINAL cwd; but by the
+time `weights_path` is constructed, cwd IS `self.outdir` already. `pathlib`
+does not re-resolve on `os.chdir` (a `Path` object is just a string), so
+`self.outdir / filename` silently produces a path that means "join
+`self.outdir` onto ITSELF" once `torch.save` actually opens it - a
+doubly-nested path whose parent directory was never created, hence
+`RuntimeError: Parent directory ... does not exist`, raised AFTER the full
+training run had already completed.
+
+### Evidence
+
+```
+$ python experiments/exp05_dqn_frozenlake_classical_ceiling.py --smoke
+[1/6] frozen_binary_4q_L1__fix01on__s1
+Training finished!
+    FAILED: RuntimeError: Parent directory results\exp04_dqn_frozenlake_embeddings\_smoke does not exist.
+```
+
+Reproduced directly and minimally, isolated from the smoke script:
+`SafeDQN(..., outdir=pathlib.Path("results/_bugcheck_relative_outdir"), ...)`
+- a 500-step classical cell - raised the identical error after
+`Training finished!`. Fixed by resolving `self.outdir` to an absolute path
+ONCE, at construction:
+
+```python
+self.outdir = (pathlib.Path(outdir) if outdir else pathlib.Path.cwd()).resolve()
+```
+
+`os.chdir` accepts an absolute path exactly as well as a relative one, and
+every `self.outdir`-relative expression built anywhere in the class -
+`weights_path`, and (though never buggy, since they run AFTER the `finally`
+restores cwd) `trace_path`, `eval_path` - is now correct regardless of when
+in the method it is evaluated. Re-ran the identical reproduction after the
+fix: succeeds, `weights_path.is_absolute()` and `.exists()`. Pinned by
+`tests/test_weight_saving.py::test_weights_save_with_a_relative_outdir`,
+which `monkeypatch.chdir`s to a fresh `tmp_path` and passes a genuinely
+relative `outdir` - confirmed to FAIL with the exact reported error against
+the pre-fix code, and to pass against the fix.
+
+### Scope
+
+**Every cell of every experiment run so far in this project is unaffected**:
+`run_dqn_suite.py` and every experiment script pass `--outdir` explicitly
+when actually launching a real pass, and this session's own relaunches
+(exp04's `--dr-a --dr-b ...`, the queued exp05/exp06 coverage runs) all used
+absolute Drive paths. The bug needed a RELATIVE `outdir` specifically, which
+only happens when a script's `--outdir` default is used as-is - exactly what
+every script's own `Usage` docstring shows as the first, simplest example
+(`python experiments/exp0N_....py` with no flags). Had any future session
+followed that documented usage literally for a real (non-smoke) pass, it
+would have spent the FULL step budget of every cell before crashing on the
+weight-save, with nothing recorded to disk (no manifest - `train()` raises
+before `run_arm` can write one) and nothing to show for the compute. Caught
+before that happened, by the smoke run doing exactly its job.

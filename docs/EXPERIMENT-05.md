@@ -7,9 +7,11 @@ yet written)
 **Modules:** `core/su2_emulator.py` (NEW-05, infrastructure), `core/fourier_ceiling.py`
 (NEW-06, the control arm) — both exist and are tested; see docs/CORRECTIONS.md#new-05
 and #new-06.
-**Status:** design and analytical verification done (Phase A); arm
-registration, ladder entries and the grid script wait for `core/configs.py`
-to be safe to edit again (Phase B) — see the standing note in `docs/ROADMAP.md`.
+**Status:** design and analytical verification done (Phase A). **UPDATE
+2026-08-30: arm registration done** — `frozen_binary_4q_fourier_ceiling`
+(`linear_on_bits`, 20 params, no L suffix — see docs/CORRECTIONS.md#new-06)
+is registered in `core/configs.py` and dry-run verified via `--ladder-only`
+and `tests/test_new_agent_types.py`. The grid script is the only piece left.
 
 ---
 
@@ -77,7 +79,7 @@ nothing about the real circuit):
 |---|---|---|
 | `frozen_binary_4q_L1` / `L5` | **exists, exp04b** | entangled — the object of study |
 | `frozen_binary_4q_noent_L1` / `L5` | registered (`core/configs.py`), not yet run | unentangled circuit — the thing the ceiling bounds |
-| the Fourier/linear-bits ceiling | new (NEW-06), needs arm registration | the classical ceiling — degenerate `linear_on_bits_ceiling`, 5 params/action |
+| `frozen_binary_4q_fourier_ceiling` | **registered 2026-08-30**, not yet run | the classical ceiling — degenerate `linear_on_bits_ceiling`, 5 params/action, no L suffix (L-independent) |
 | `frozen_matched_scalar` | **exists, exp04b** | capacity-matched classical control (NEW-02), already answers the budget-matched question |
 
 `frozen_binary_4q_noent_L{1,5}` is not a new arm to design — it already
@@ -98,7 +100,7 @@ affordable from the start, as it was for exp04's own Config A/B arms.
 | `frozen_binary_4q_L5` | on | reuses exp04b's 3 seeds |
 | `frozen_binary_4q_noent_L1` | on | 3, new |
 | `frozen_binary_4q_noent_L5` | on | 3, new |
-| ceiling (linear-on-bits) | n/a — classical, no PQC | 3, new (cheap) |
+| `frozen_binary_4q_fourier_ceiling` | n/a — classical, no PQC | 3, new (cheap) |
 | `frozen_matched_scalar` | on | reuses exp04b's 10 seeds |
 
 ## 4. Pre-declared hypotheses and readings

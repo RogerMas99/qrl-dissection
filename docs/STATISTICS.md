@@ -97,6 +97,27 @@ robust estimator to be had.
 
 ---
 
+## Reproducibility here is statistical, not bit-identical
+
+Worth stating once, plainly, because "seed=N" invites the wrong assumption.
+`docs/CORRECTIONS.md#fix-10`: `DQN`'s `seed` argument does not reach the RNG
+epsilon-greedy exploration actually draws from (`gymnasium.spaces.Discrete`
+self-seeds from OS entropy unless explicitly told otherwise, and nothing in
+`simplyqrl` tells it otherwise on the path DQN takes) - confirmed by
+re-running the identical spec three times and getting three different
+action sequences. Weight initialisation, replay-buffer sampling order and
+argmax itself ARE properly seeded; exploration is the one gap.
+
+This does not weaken anything above: every number in this project was
+already IQM + a percentile bootstrap CI over N independent seeds, never one
+seed's own trajectory, and an OS-entropy draw is still a genuinely
+independent sample regardless of which nominal seed asked for it. What it
+rules out is a narrower claim nobody here should make: that re-running
+`seed=3` later reproduces the SAME curve. It does not, and no result in
+`RESULTS-LOG.md` should be read as if it did.
+
+---
+
 ## The limitation we do not have a way around
 
 Agarwal et al.'s **stratified** bootstrap aggregates across tasks: Atari 100k

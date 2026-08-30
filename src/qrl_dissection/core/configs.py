@@ -373,6 +373,56 @@ for _L in FROZEN_DR_B:
 ARMS["frozen_onehot_mlp"] = ("classic", FROZEN_ONEHOT_MLP)
 ARMS["frozen_scalar_mlp_large"] = ("classic", FROZEN_SCALAR_MLP_LARGE)
 
+
+# ---------------------------------------------------------------------------
+# [NEW-05 / NEW-06] Classical stand-ins: SU(2) emulator equivalence checks and
+# the additive Fourier ceiling. Added, not substituted for anything above -
+# see core/su2_emulator.py and core/fourier_ceiling.py for what each is and is
+# not, and docs/CORRECTIONS.md#new-05 / #new-06 for the full argument.
+#
+# NEW-05 arms mirror an EXISTING unentangled hybrid arm's shape exactly
+# (n_qubits, n_layers_q, transform_fn), so training this arm and the real PQC
+# arm on the same seed is a distribution-level equivalence check, not a new
+# experimental condition:
+#   su2_cartpole_L5           <-> HYBRID_FIG4 with ent forced False (8q, L5)
+#   su2_frozen_scalar_1q_L5   <-> frozen_scalar_1q_L5   (1q, L5, already ent=False)
+#   su2_frozen_binary_4q_L1   <-> frozen_binary_4q_noent_L1 (4q, L1, ent=False)
+#   su2_frozen_binary_4q_L5   <-> frozen_binary_4q_noent_L5 (4q, L5, ent=False)
+# `SU2HybridAgent` raises on ent=True by construction (see that class), so
+# there is no su2 arm mirroring an ENTANGLED hybrid - that pair cannot exist.
+#
+# NEW-06 arms are the classical ceiling on the corresponding real circuit's
+# accessible hypothesis class, NOT capacity-matched to it (see
+# core/fourier_ceiling.py's "Open sizing question" note - both parameter
+# counts are meant to be reported side by side, not equalised):
+#   cartpole_fourier_ceiling_L5      <-> HYBRID_FIG4 (8q, L5, circ_type=skolik,
+#                                        additive - check_additive_embedding
+#                                        passes)
+#   frozen_binary_4q_fourier_ceiling <-> frozen_binary_4q_{noent_,}L{1,5} - NO
+#                                        L suffix on purpose: `linear_on_bits`
+#                                        is the FrozenLake Config B degenerate
+#                                        case, provably L-independent
+#                                        (core/fourier_ceiling.py's
+#                                        "FrozenLake Config B degeneracy"
+#                                        section) - one arm bounds every L.
+# ---------------------------------------------------------------------------
+_SU2_CARTPOLE_L5 = dict(HYBRID_FIG4)
+_SU2_CARTPOLE_L5["ent"] = False
+ARMS["su2_cartpole_L5"] = ("su2", _SU2_CARTPOLE_L5)
+ARMS["su2_frozen_scalar_1q_L5"] = ("su2", frozen_scalar_config(5))
+ARMS["su2_frozen_binary_4q_L1"] = ("su2", frozen_binary_config(1, ent=False))
+ARMS["su2_frozen_binary_4q_L5"] = ("su2", frozen_binary_config(5, ent=False))
+
+ARMS["cartpole_fourier_ceiling_L5"] = (
+    "fourier_additive",
+    {"n_qubits": HYBRID_FIG4["n_qubits"], "n_layers_q": HYBRID_FIG4["n_layers_q"],
+     "circ_type": "skolik"},
+)
+ARMS["frozen_binary_4q_fourier_ceiling"] = (
+    "linear_on_bits",
+    {"n_qubits": 4, "transform_fn": "frozen_binary"},
+)
+
 # Which registered env id each arm expects. Arms see the scalar observation
 # unless they are the one-hot reference.
 FROZEN_ARM_ENV = {a: (FROZEN_ONEHOT_ID if a == "frozen_onehot_mlp" else FROZEN_SCALAR_ID)

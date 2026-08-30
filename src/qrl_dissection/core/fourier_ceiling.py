@@ -204,7 +204,30 @@ class FourierAdditiveCeiling(nn.Module):
         return out.squeeze(0) if squeeze else out
 
 
-def linear_on_bits_ceiling(n_qubits: int, n_actions: int) -> nn.Linear:
+class _TransformedLinear(nn.Module):
+    """`nn.Linear` with `transform_fn` applied to the raw input first.
+
+    Exists so `linear_on_bits_ceiling` can be wired directly into the same
+    env-observation plumbing every other arm receives (`build_arm_config`
+    resolves a stored transform marker to a real callable before this ever
+    runs - see `core/configs.py::_resolve_transform`), without baking a
+    specific grid or transform into the ceiling module itself.
+    """
+
+    def __init__(self, transform_fn, linear: nn.Linear):
+        super().__init__()
+        self.transform_fn = transform_fn
+        self.linear = linear
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.transform_fn is not None:
+            x = self.transform_fn(x)
+        return self.linear(x)
+
+
+def linear_on_bits_ceiling(
+    n_qubits: int, n_actions: int, transform_fn: Optional[Callable] = None
+) -> nn.Module:
     """The FrozenLake-Config-B-degenerate Fourier ceiling: an affine model on
     the RAW bits, independent of reuploading depth L.
 
@@ -217,5 +240,19 @@ def linear_on_bits_ceiling(n_qubits: int, n_actions: int) -> nn.Linear:
     matching the derivation in `docs/CORRECTIONS.md#new-06` exactly - not an
     approximation, not capacity-matched to anything, the exact size of the
     hypothesis class.
+
+    `transform_fn`, if given, is applied to the raw observation before the
+    linear head - e.g. `FrozenBasisToAngleTransformer` itself, which returns
+    bits scaled by pi ({0, pi}) rather than {0, 1}. That fixed rescaling does
+    not change the hypothesis class (an affine model absorbs it into its
+    weights), so it is fine to reuse the same transformer the real circuit
+    uses rather than writing a separate bits-only one. Omit `transform_fn` to
+    get the bare `nn.Linear` for callers that already have a bit vector
+    in hand (e.g. the enumeration test in
+    `tests/test_frozenlake_additive_ceiling.py`, which never constructs this
+    function at all - it checks the claim directly against the real circuit).
     """
-    return nn.Linear(n_qubits, n_actions)
+    linear = nn.Linear(n_qubits, n_actions)
+    if transform_fn is None:
+        return linear
+    return _TransformedLinear(transform_fn, linear)

@@ -141,10 +141,89 @@ def _patch_output_scale() -> None:
     _APPLIED["FIX-02"] = "OutputScale now actually appended to HybridAgent.network"
 
 
+# ---------------------------------------------------------------------------
+# [NEW-05 / NEW-06] agent_type dispatch extension: su2, fourier_additive,
+# linear_on_bits
+#
+# Not a correction - an ADDITION. Wraps whatever `build_agent` already is
+# (after FIX-03's patch above) with three agent_type values this project
+# defines itself, never present upstream: they construct `SU2HybridAgent` /
+# `FourierAdditiveCeiling` / `linear_on_bits_ceiling` directly instead of
+# falling through to upstream's mlp/hybrid dispatch. Anything not in this set
+# is passed through UNCHANGED to whatever build_agent was before this patch,
+# so `_patch_agent_type_aliases`'s own code above is never touched.
+#
+# These three are inference/verification stand-ins (core/su2_emulator.py,
+# core/fourier_ceiling.py), not new experimental hypotheses of their own -
+# see those modules' docstrings for what each does and does not claim.
+# See:       docs/CORRECTIONS.md#new-05, docs/CORRECTIONS.md#new-06
+# ---------------------------------------------------------------------------
+_NEW_AGENT_TYPES = {"su2", "fourier_additive", "linear_on_bits"}
+
+
+def _patch_new_agent_types() -> None:
+    import numpy as np
+    from simplyqrl import agents as up
+
+    previous = up.build_agent
+    if getattr(previous, "_qrl_dissection_new_types_patched", False):
+        return
+
+    def build_agent(type, obs_shape, n_actions, config, is_qnet=False):  # noqa: A002
+        key = str(type).lower()
+        if key in _NEW_AGENT_TYPES:
+            if not is_qnet:
+                raise ValueError(
+                    f"agent_type={key!r} only supports is_qnet=True (DQN); it "
+                    "has no actor-critic construction."
+                )
+            cfg = config or {}
+            obs_dim = int(np.prod(obs_shape))
+            if key == "su2":
+                from .su2_emulator import SU2HybridAgent
+                return SU2HybridAgent(obs_dim, n_actions, cfg, is_qnet=True)
+            if key == "fourier_additive":
+                from .fourier_ceiling import FourierAdditiveCeiling
+                return FourierAdditiveCeiling(
+                    n_qubits=cfg.get("n_qubits", 4),
+                    n_layers=cfg.get("n_layers_q", 1),
+                    n_actions=n_actions,
+                    emb_indices=cfg.get("emb_indices", None),
+                    transform_fn=cfg.get("transform_fn", None),
+                    circ_type=cfg.get("circ_type", "skolik"),
+                    n_data=obs_dim,
+                )
+            if key == "linear_on_bits":
+                from .fourier_ceiling import linear_on_bits_ceiling
+                return linear_on_bits_ceiling(
+                    cfg.get("n_qubits", 4), n_actions,
+                    transform_fn=cfg.get("transform_fn", None),
+                )
+        return previous(type, obs_shape, n_actions, config, is_qnet=is_qnet)
+
+    build_agent._qrl_dissection_new_types_patched = True
+    up.build_agent = build_agent
+
+    # Same rebinding as FIX-03 above - dqn.py and ppo.py imported build_agent
+    # by name, so the attribute on `agents` alone would not reach them.
+    for mod_name in ("simplyqrl.dqn", "simplyqrl.ppo"):
+        try:
+            mod = __import__(mod_name, fromlist=["build_agent"])
+        except Exception:  # pragma: no cover - optional module
+            continue
+        if hasattr(mod, "build_agent"):
+            mod.build_agent = build_agent
+
+    _APPLIED["NEW-05/NEW-06"] = (
+        "agent_type dispatch extended: su2, fourier_additive, linear_on_bits"
+    )
+
+
 def apply_upstream_patches() -> None:
     """Idempotent. Called on `import qrl_dissection`."""
     _patch_agent_type_aliases()
     _patch_output_scale()
+    _patch_new_agent_types()
 
 
 def upstream_report() -> Dict[str, Any]:

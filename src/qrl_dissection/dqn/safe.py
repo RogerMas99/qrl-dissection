@@ -227,7 +227,21 @@ class SafeDQN:
         self.env_id = env_id
         self.fix_autoreset = fix_autoreset
         self.eval_cfg = eval_cfg or GreedyEvalConfig()
-        self.outdir = pathlib.Path(outdir) if outdir else pathlib.Path.cwd()
+        # Resolved to absolute at construction time, deliberately: train()
+        # os.chdir()s INTO self.outdir for upstream's relative runs/*.csv
+        # writes, then back out in a finally. Any self.outdir-relative path
+        # built INSIDE that window (e.g. the weights_path below) would
+        # otherwise double-resolve against the now-changed cwd - a real bug
+        # this exact line fixes, caught by experiments/exp05's --smoke run
+        # crashing on a relative --outdir. See docs/CORRECTIONS.md#fix-11.
+        # Resolved to absolute at construction time, deliberately: train()
+        # os.chdir()s INTO self.outdir for upstream's relative runs/*.csv
+        # writes, then back out in a finally. Any self.outdir-relative path
+        # built INSIDE that window (e.g. the weights_path below) would
+        # otherwise double-resolve against the now-changed cwd - a real bug
+        # this exact line fixes, caught by experiments/exp05's --smoke run
+        # crashing on a relative --outdir. See docs/CORRECTIONS.md#fix-11.
+        self.outdir = (pathlib.Path(outdir) if outdir else pathlib.Path.cwd()).resolve()
         self.dqn_kwargs = dqn_kwargs
 
     def train(self, total_timesteps: int, progress_bar: bool = False) -> TrainOutcome:
@@ -264,6 +278,20 @@ class SafeDQN:
                 probe.on_step = _hook
 
             dqn.train(total_timesteps=total_timesteps, progress_bar=progress_bar)
+
+            # [weight saving] A single write, after training finishes, of the
+            # ONLINE network's state_dict only - no optimiser state, no replay
+            # buffer, no exploration-schedule position, no RNG streams. This is
+            # NOT resumption support, which stays deliberately unsupported (see
+            # docs/REUSE.md, "Mid-run continuation - no, and deliberately not"):
+            # a saved state_dict lets a FINISHED policy be inspected or reused
+            # for inference (e.g. extracting a trained circuit's Fourier
+            # spectrum, docs/ROADMAP.md's NEW-06 follow-ups), it does not let
+            # training be continued from this point. A few KB per cell.
+            import torch
+            weights_path = self.outdir / f"{self.run_name}_weights.pt"
+            torch.save(dqn.q_network.state_dict(), weights_path)
+
             probe.restore()
             with contextlib.suppress(Exception):
                 dqn.close()
@@ -292,4 +320,9 @@ class SafeDQN:
             episodes_csv=str(self.outdir / "runs" / f"{self.run_name}.csv"),
             eval_csv=str(eval_path) if eval_path else None,
             trace_npy=str(trace_path),
+            # Optional by construction (TrainOutcome.extra already defaults to
+            # {}), so manifests written before this change keep parsing fine -
+            # they simply have no "weights_path" key. See docs/CORRECTIONS.md
+            # for the compatibility note.
+            extra={"weights_path": str(weights_path)},
         )
