@@ -52,6 +52,45 @@ is a finding, and a cheaper one to make now than during a defence.
 
 ---
 
+## A third statistic: `greedy_final` - neither of the other two is clean on both axes
+
+`greedy_best` and `final_performance` fix different halves of the same problem,
+and each one leaves the other half unfixed:
+
+| statistic | clean of the MAX bias? | clean of exploration? |
+|---|---|---|
+| `greedy_best` (max over greedy-eval checkpoints, epsilon=0) | **no** - a maximum, same bias `final_performance` exists to fix | yes - each checkpoint IS a greedy (epsilon=0) rollout |
+| `final_performance` (mean of the last 10% of TRAINING episodes) | yes - a mean over a fixed window | **no** - those episodes ran under epsilon-greedy at `end_e` (0.05 by this project's default), never epsilon=0 |
+| `greedy_final` (mean of the LAST 3 greedy-eval checkpoints) | yes - a mean, not a max | yes - same epsilon=0 checkpoints `greedy_best` uses |
+
+`stats.greedy_final(greedy_checkpoint_scores, last_n=3)` - the mean of the last
+`last_n` entries of the SAME eval-checkpoint series `greedy_best` already reads
+(`dqn/safe.py::evaluate_greedy`, logged to `runs/<run>_eval.csv`). No
+retraining: the checkpoints are already on disk, exactly like
+`final_performance`'s episodes.
+
+**Why 3, and where it could be wrong.** Every cell audited for this
+recomputation (exp01-exp04, `--eval-every 10_000` at 100k steps) has exactly
+10 greedy-eval checkpoints, uniformly - so "last 3" is a stable, non-degenerate
+30% tail everywhere it has actually been used; there is no cell in this
+project's current results where 3 was clipped to fewer (`greedy_final`
+degrades gracefully - the mean of whatever is there - if that ever changes,
+e.g. a shorter run or a different `--eval-every`). Do not assume 10 checkpoints
+elsewhere without checking `len(load_eval(...)[0])` first - a script with a
+different `--eval-every`, or a run cut short, would have fewer, and "last 3 of
+4" is a much less stable tail than "last 3 of 10".
+
+**Read all three together, not `greedy_final` alone.** A cell where
+`greedy_best` and `greedy_final` diverge sharply (e.g. `greedy_best=1.000` but
+`greedy_final` well below it) means the policy reached the target at some
+checkpoint but was not STABLY there by the end of training - a real
+distinction `greedy_best`'s max cannot show and `final_performance` cannot
+show either (it is not a greedy statistic at all). See
+`docs/RESULTS-LOG.md`'s exp04 stage-2 table for `frozen_binary_4q_L5`, the
+concrete case this caught.
+
+---
+
 ## What we report instead of mean ± sd
 
 **IQM** (`stats.iqm`) - the mean of the middle 50% of runs. Keeps the median's
@@ -139,6 +178,8 @@ the level the data supports, not at the level the paper demonstrates.
 ## Checklist before a number enters the memoria
 
 - [ ] computed with `final_performance`, not a maximum over training
+- [ ] a `greedy`-labelled claim reports `greedy_final` alongside `greedy_best`
+      - the max alone is exploration-clean but not max-bias-clean
 - [ ] reported as IQM with a percentile bootstrap CI, not mean ± sd
 - [ ] N stated next to the interval
 - [ ] comparisons phrased as probability of improvement where the runs overlap

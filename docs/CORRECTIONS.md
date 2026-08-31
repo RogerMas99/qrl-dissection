@@ -996,8 +996,21 @@ exp04 stage-2 greedy-loop finding) into cited evidence: a from-scratch
 retrain at the identical spec - same arm, same `seed=1`, same `DQN_KWARGS`,
 same `total_timesteps` - landed the greedy policy in a **different** trap
 than an earlier session's now-unreproducible description (`0<->4` DOWN/UP vs.
-`0->1->2->3` then a self-loop at 3). That discrepancy is itself the finding,
-not a mistake to quietly paper over.
+`0->1->2->3` then a self-loop at 3). A third retrain, same spec again,
+landed back on `0<->4` (DOWN/UP), this time with the Q-gaps measured
+directly: 0.002 at state 0, 0.018 at state 4 - matching the original
+description's "~0.01-0.02" closely. That discrepancy, and the partial
+recurrence, is itself the finding, not a mistake to quietly paper over. See
+docs/RESULTS-LOG.md's exp04 stage-2 update for all three runs' evidence
+side by side, and the explicit caveat this entry motivates: three runs from
+one machine, in one project, are not equivalent samples of one population -
+nothing here records what else may have differed between them, and this
+very entry is why "same nominal seed" cannot be assumed to equalise them
+either. What is defensible is narrower: the MECHANISM is stable (a
+razor-thin argmax margin traps the greedy policy), the specific trajectory
+is not, and of the two trajectories seen so far, `0<->4` has recurred
+(twice) while the state-3 self-loop has not (once) - stated as a count, not
+a rate.
 
 ### Mechanism
 

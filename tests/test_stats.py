@@ -76,6 +76,28 @@ def test_final_performance_uses_the_end_of_training():
     assert S.final_performance(rising, last_frac=0.1) == pytest.approx(94.5)
 
 
+def test_greedy_final_is_mean_of_last_n_checkpoints():
+    checkpoints = [0.0, 0.1, 0.2, 0.9, 0.8, 1.0]  # 6 checkpoints, last 3 = [0.9,0.8,1.0]
+    assert S.greedy_final(checkpoints, last_n=3) == pytest.approx((0.9 + 0.8 + 1.0) / 3)
+
+
+def test_greedy_final_clips_to_available_checkpoints():
+    """Fewer checkpoints than last_n: use whatever is there, do not raise or pad."""
+    assert S.greedy_final([1.0, 0.5], last_n=3) == pytest.approx(0.75)
+    assert S.greedy_final([1.0], last_n=3) == pytest.approx(1.0)
+    assert np.isnan(S.greedy_final([], last_n=3))
+
+
+def test_greedy_final_is_not_a_maximum_unlike_greedy_best():
+    """The whole point of the statistic: a single lucky spike late in an
+    otherwise-flat checkpoint series should not dominate it the way max()
+    would - it must be visibly pulled toward the OTHER recent checkpoints."""
+    checkpoints = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]  # one spike as the last point
+    assert max(checkpoints) == 1.0
+    gf = S.greedy_final(checkpoints, last_n=3)
+    assert gf < 0.5, "one spike among the last 3 must not read like a max"
+
+
 def test_stratified_bootstrap_keeps_every_task_represented():
     tasks = {"cartpole": list(np.random.default_rng(4).normal(300, 40, 10)),
              "frozenlake": list(np.random.default_rng(5).normal(0.8, 0.1, 10))}
