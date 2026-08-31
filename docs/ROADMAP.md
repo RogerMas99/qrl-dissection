@@ -235,6 +235,21 @@ eight. Measured throughput ~50 and ~25 steps/s on a CPU runtime.
   of FIX-01's phantom transitions) by which off-policy training on sparse
   reward is sensitive to exploration randomness FIX-10 shows is not under
   `seed=`'s control.
+- **Stop wasting ~95% of greedy-eval compute on FrozenLake (not
+  implemented).** `docs/EXPERIMENT-04.md`'s Metric section: FrozenLake's
+  fixed start + `is_slippery=False` determinism means every one of
+  `n_episodes` greedy rollouts at a checkpoint is the IDENTICAL trajectory -
+  `env.reset(seed=...)` has nothing stochastic left to seed. exp04's
+  `eval_cfg_for` runs `n_episodes=20` at ~10 checkpoints per 100k-step cell
+  (`every_steps=10_000`), so ~190 of ~200 rollouts per cell reproduce a
+  number already known from the other 10. Cheap individually (no gradient,
+  `torch.no_grad()`, <=100 env steps each) so not worth interrupting a
+  running grid for, but real, quantifiable waste. Fix: `n_episodes=1` for
+  environments with no reset-time randomness (or a cheap check that
+  short-circuits after the first rollout when consecutive greedy rollouts
+  come back identical). Does NOT apply to CartPole - `env.reset(seed=...)`
+  there does randomise the initial state, so its `n_episodes` rollouts are
+  genuinely independent.
 
 ## Adding an experiment
 

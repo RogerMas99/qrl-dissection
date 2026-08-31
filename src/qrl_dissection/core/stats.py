@@ -44,6 +44,7 @@ __all__ = [
     "stratified_bootstrap_ci",
     "probability_of_improvement",
     "final_performance",
+    "greedy_final",
     "summarise_scores",
 ]
 
@@ -131,6 +132,41 @@ def final_performance(rewards: Sequence[float], last_frac: float = 0.1) -> float
     if x.size == 0:
         return float("nan")
     k = max(1, int(round(x.size * last_frac)))
+    return float(np.mean(x[-k:]))
+
+
+def greedy_final(greedy_checkpoint_scores: Sequence[float], last_n: int = 3) -> float:
+    """Mean of the last `last_n` greedy-evaluation checkpoints for one cell.
+
+    Neither statistic already in use is simultaneously free of exploration
+    noise AND free of the maximum-over-training bias:
+
+        greedy_best         max() over the greedy-eval checkpoints (epsilon=0,
+                             so clean of exploration) - but a MAXIMUM, so
+                             positively biased, worse for noisier arms (same
+                             argument as `final_performance` vs `best_ma50`).
+        final_performance    mean over the LAST TRAINING episodes - not a
+                             maximum, but those episodes ran under
+                             epsilon-greedy at `end_e` (0.05 by this
+                             project's default, never exactly 0), so it is
+                             not clean of exploration either.
+
+    `greedy_final` is the mean of the last `last_n` entries of the SAME
+    eval-checkpoint series `greedy_best` already uses (`env.step` at
+    epsilon=0, `dqn/safe.py::evaluate_greedy`) - clean of exploration like
+    `greedy_best`, and a mean rather than a max like `final_performance`.
+    Needs only the eval CSV already on disk; no retraining.
+
+    `last_n` is silently clipped to however many checkpoints the cell
+    actually has (a short run may have fewer than `last_n`) - callers that
+    care whether that happened should check the checkpoint count themselves,
+    e.g. `len(load_eval(...)[0])`.
+    """
+    x = np.asarray(greedy_checkpoint_scores, dtype=float)
+    x = x[np.isfinite(x)]
+    if x.size == 0:
+        return float("nan")
+    k = min(last_n, x.size)
     return float(np.mean(x[-k:]))
 
 

@@ -121,18 +121,41 @@ a maximum over training - biased upward, more so for a noisier arm) and IQM of
 `final_performance` (mean of the last 10% of episodes - unbiased, needs no
 retraining). 95% percentile bootstrap CIs in parentheses.
 
-| arm | FIX-01 | n | greedy_best IQM (CI) | final_performance IQM (CI) |
-|---|---|---|---|---|
-| paper_linear | off | 10 | 11.7 (9.4, 20.2) | 9.6 (9.6, 9.7) |
-| paper_linear | on | 10 | 11.7 (9.4, 19.0) | 9.6 (9.6, 9.7) |
-| matched_classical (full) | off | 10 | 12.7 (9.7, 32.1) | 9.9 (9.7, 10.3) |
-| matched_classical (full) | on | 10 | 20.9 (12.6, 40.9) | 11.8 (10.7, 12.6) |
-| hybrid_fig4 | off | 3 | 97.7 (51.2, 140.0) | 38.1 (22.8, 66.6) |
-| hybrid_fig4 | on | 3 | 107.7 (51.6, 139.4) | 44.7 (25.9, 54.6) |
-| oversized_mlp | off | 10 | 461.1 (391.8, 492.8) | 198.3 (166.4, 231.5) |
-| oversized_mlp | on | 10 | 449.4 (406.6, 476.3) | 252.0 (234.8, 279.4) |
+> **UPDATE 2026-08-30 - `hybrid_fig4` is now n=10 on disk, not n=3, and the
+> table below was never refreshed. Found while adding `greedy_final`
+> (`docs/STATISTICS.md`), not while looking for this specifically - worth
+> saying so, because it means this went unnoticed for a while.** All 10
+> `hybrid_fig4__fix01{off,on}__s{1..10}` manifests are genuine 100k-step
+> runs (wall times 22.5k-40.9k s, no duplicates, no partial cells - checked
+> directly, not assumed). The table below is the CORRECTED n=10 read,
+> replacing the n=3 numbers above outright (not appended alongside them,
+> since they answer the same question at a larger, more trustworthy N) -
+> `greedy_final` (mean of the last 3 greedy-eval checkpoints, clean of both
+> the max bias AND training-time exploration noise - `docs/STATISTICS.md`)
+> added throughout, on the same already-saved eval CSVs, no retraining.
 
-**Reading, with the honest metric.**
+| arm | FIX-01 | n | greedy_best IQM (CI) | `final_performance` IQM (CI) | `greedy_final` IQM (CI) |
+|---|---|---|---|---|---|
+| paper_linear | off | 10 | 11.7 (9.4, 20.2) | 9.6 (9.6, 9.7) | 9.5 (9.3, 9.7) |
+| paper_linear | on | 10 | 11.7 (9.4, 19.0) | 9.6 (9.6, 9.7) | 9.5 (9.3, 9.7) |
+| matched_classical (full) | off | 10 | 12.7 (9.7, 32.1) | 9.9 (9.7, 10.3) | 9.6 (9.5, 10.0) |
+| matched_classical (full) | on | 10 | 20.9 (12.6, 40.9) | 11.8 (10.7, 12.6) | 11.1 (10.1, 12.5) |
+| hybrid_fig4 (was n=3, now n=10) | off | 10 | 49.3 (31.3, 83.5) | 19.9 (13.3, 32.7) | 28.5 (17.8, 46.5) |
+| hybrid_fig4 (was n=3, now n=10) | on | 10 | 88.2 (51.4, 128.8) | 35.8 (24.0, 48.1) | 47.3 (31.2, 67.8) |
+| oversized_mlp | off | 10 | 461.1 (391.8, 492.8) | 198.3 (166.4, 231.5) | 212.0 (165.8, 292.6) |
+| oversized_mlp | on | 10 | 449.4 (406.6, 476.3) | 252.0 (234.8, 279.4) | 266.0 (245.3, 314.8) |
+
+**`hybrid_fig4`'s numbers roughly HALVE going from n=3 to n=10** (greedy_best
+97.7->49.3, final_performance 38.1->19.9 at fix01=off; similar at on). This is
+not a computation error - checked directly against the manifests, see above -
+it is the n=3-is-coverage-not-conclusion warning this project has repeated
+throughout materialising concretely: the original 3 seeds happened to be a
+more favourable sub-sample of a wide, high-variance distribution than the
+full 10 turned out to be. **Every reading below that cites the old
+38.1-44.7/97.7-107.7 numbers is superseded; recompute or requote from this
+table, not from memory of the earlier one.**
+
+**Reading, with the honest metric (revised for n=10).**
 
 - **`matched_classical` is ALSO at the degenerate floor** by `final_performance`
   (IQM 9.9-11.8, indistinguishable from `paper_linear`'s 9.6-9.7), even though
@@ -142,11 +165,14 @@ retraining). 95% percentile bootstrap CIs in parentheses.
   this training budget - the same collapse `paper_linear` shows, just slightly
   less severe. NEW-02 makes the comparison fair; it does not make the classical
   arm learn.
-- **The hybrid's advantage over the matched control survives on the honest
-  metric** (final IQM 38.1-44.7 vs matched's 9.9-11.8) - a real, if modest, gap,
-  not an artefact of `greedy_best`'s variance bias. This is the strongest
-  available claim about the circuit under DQN so far, and it is now measured
-  with the metric that does not favour a noisier arm.
+- **The hybrid's advantage over the matched control still survives at n=10,
+  but it is smaller than previously reported.** `final_performance` IQM
+  19.9-35.8 vs matched's 9.9-11.8 - a real gap (roughly 2-3x, not the ~4x the
+  n=3 numbers suggested), and `greedy_final` (28.5-47.3 vs 9.6-11.1) agrees on
+  direction and size. Still the strongest available claim about the circuit
+  under DQN, still not an artefact of `greedy_best`'s variance bias (all three
+  statistics agree) - but "modest, real gap" replaces "a real, if modest,
+  gap" of roughly double the size.
 
   > **STATUS: UNDER REVIEW, 2026-08-21 - do not read this bullet as settled in
   > either direction.** Open question: is `matched_classical` dead because its
@@ -161,10 +187,12 @@ retraining). 95% percentile bootstrap CIs in parentheses.
   > reflect the circuit, or it may reflect that the matched control was never
   > given a fair shape, only a fair total count. See the open item in
   > `docs/CORRECTIONS.md` if/when this is investigated further.
-- **But "the hybrid learns" needs qualifying.** Final-performance IQM of 38-45
-  is far from `oversized_mlp`'s 198-258 - the hybrid clears the dead-classical
-  floor decisively but is nowhere near a converged CartPole policy. Both
-  statements are true and belong together, not separately.
+- **But "the hybrid learns" needs qualifying, more so now than at n=3.**
+  Final-performance IQM of 19.9-35.8 (was 38.1-44.7) is far from
+  `oversized_mlp`'s 198-258 - the hybrid clears the dead-classical floor but
+  is nowhere near a converged CartPole policy, and at n=10 it clears that
+  floor by less than the n=3 read suggested. Both statements are true and
+  belong together, not separately.
 - **FIX-01 on `oversized_mlp` no longer looks flatly null.** At n=3 (exp01 v1)
   the delta was "+31.6, within noise". At n=10 with `final_performance`: off IQM
   198.3 (166.4, 231.5) vs on IQM 252.0 (234.8, 279.4) - the CIs are adjacent
@@ -172,10 +200,12 @@ retraining). 95% percentile bootstrap CIs in parentheses.
   significance test), but it is the first live arm anywhere in this project
   where the previously-null FIX-01 reading deserves a second look rather than
   being repeated by default.
-- **`hybrid_fig4` remains the one arm not yet re-run at n=10** - it is the
-  object of study, and the top-level "seeds" count for this directory (10) does
-  NOT reflect that, because it is computed over all arms pooled. Check
-  per-arm, always.
+- **UPDATE 2026-08-30: `hybrid_fig4` is no longer the one arm not re-run at
+  n=10 - see the correction above.** (This bullet is kept, struck through in
+  spirit rather than deleted, so a reader who only skims bullets does not
+  miss that the premise changed.) The top-level "seeds" count for this
+  directory being computed over all arms pooled, not per-arm, is still true
+  and still worth checking directly rather than trusting the aggregate.
 
 ---
 
@@ -237,16 +267,24 @@ corrected, separated read. `greedy_best` (legacy, biased) and IQM of
 `final_performance` (unbiased) both reported, 95% bootstrap CIs in
 parentheses, per the STATISTICS.md checklist.
 
-| arm | R | n | greedy_best IQM (CI) | final_performance IQM (CI) |
-|---|---|---|---|---|
-| hybrid_or | 4 | 10 | 178.8 (127.9, 274.9) | 94.7 (81.0, 111.9) |
-| hybrid_or | 8 | 10 | 187.2 (146.2, 301.3) | 109.8 (93.9, 124.9) |
-| hybrid_or | 16 | 10 | 199.1 (157.9, 265.2) | 104.2 (77.1, 123.1) |
-| hybrid_or | 32 | 10 | 293.0 (199.8, 407.7) | 137.6 (106.0, 179.6) |
-| classical_or | 4 | 10 | 11.7 (9.4, 19.6) | 9.6 (9.6, 9.7) |
-| classical_or | 8 | 10 | 18.5 (9.4, 49.7) | 9.6 (9.6, 9.6) |
-| classical_or | 16 | 10 | 16.5 (9.4, 243.7) | 9.6 (9.6, 27.6) |
-| classical_or | 32 | 10 | 10.2 (10.0, 28.7) | 10.2 (10.2, 10.2) |
+| arm | R | n | greedy_best IQM (CI) | `final_performance` IQM (CI) | `greedy_final` IQM (CI) |
+|---|---|---|---|---|---|
+| hybrid_or | 4 | 10 | 178.8 (127.9, 274.9) | 94.7 (81.0, 111.9) | 112.0 (91.4, 153.7) |
+| hybrid_or | 8 | 10 | 187.2 (146.2, 301.3) | 109.8 (93.9, 124.9) | 124.3 (107.2, 189.7) |
+| hybrid_or | 16 | 10 | 199.1 (157.9, 265.2) | 104.2 (77.1, 123.1) | 146.2 (109.8, 180.0) |
+| hybrid_or | 32 | 10 | 293.0 (199.8, 407.7) | 137.6 (106.0, 179.6) | 161.1 (119.6, 223.9) |
+| classical_or | 4 | 10 | 11.7 (9.4, 19.6) | 9.6 (9.6, 9.7) | 9.5 (9.3, 9.7) |
+| classical_or | 8 | 10 | 18.5 (9.4, 49.7) | 9.6 (9.6, 9.6) | 9.5 (9.3, 9.6) |
+| classical_or | 16 | 10 | 16.5 (9.4, 243.7) | 9.6 (9.6, 27.6) | 9.6 (9.4, 28.6) |
+| classical_or | 32 | 10 | 10.2 (10.0, 28.7) | 10.2 (10.2, 10.2) | 10.0 (10.0, 10.1) |
+
+**`greedy_final` (2026-08-30, `docs/STATISTICS.md`) does not change this
+table's reading.** `hybrid_or` sits, at every R, between `final_performance`
+(exploration noise at `end_e`, no max bias) and `greedy_best` (no exploration
+noise, but a max) - consistent with being the exploration-and-max-clean
+number the other two each miss one half of, not a contradiction of either.
+`classical_or` stays flat at the dead floor (9.5-10.0) on all three
+statistics - the "it is dead, not merely worse" reading is unaffected.
 
 **Reading.**
 
@@ -279,24 +317,51 @@ The capacity-matched, full-observation control, run through `RunSpec`/`run_grid`
 (correct `spec.arm` and `git_revision` from the start - no migration needed).
 3 seeds, 100k steps, matching the rest of exp02.
 
-| R | n | greedy_best IQM (CI) | final_performance IQM (CI) |
-|---|---|---|---|
-| 4 | 3 | 27.4 (13.4, 39.0) | 17.5 (13.7, 20.1) |
-| 8 | 3 | 36.3 (20.6, 64.4) | 20.7 (19.0, 23.8) |
-| 16 | 3 | 59.5 (40.4, 83.2) | 29.5 (26.0, 33.2) |
-| 32 | 3 | 121.2 (64.2, 193.8) | 38.8 (24.4, 55.8) |
+> **UPDATE 2026-08-30 - this arm is now n=10 on disk, not n=3, and (like
+> `hybrid_fig4` in exp01, see above) the doc was never refreshed. Same
+> discovery method: found while adding `greedy_final`, not while looking for
+> this.** `docs/RESULTS-LOG.md`'s own "PLAN, confirmed and NOT yet launched"
+> note below said this robustness pass was the next thing to run once
+> compute freed up - it has been run. The n=3 table is REPLACED, not
+> appended alongside, by the n=10 one:
 
-Three-way read against `hybrid_or` and the unmatched `classical_or`
-(`greedy_best` IQM; `P(matched > unmatched)` from
-`stats.probability_of_improvement`). **N differs across the row - stated
-explicitly because it matters for what can and cannot be read off this table:**
-
-| R | hybrid_or (n=10) | classical_or unmatched (n=10) | classical_or_matched (n=3) | P(matched > unmatched) |
+| R | n | greedy_best IQM (CI) | `final_performance` IQM (CI) | `greedy_final` IQM (CI) |
 |---|---|---|---|---|
-| 4 | 178.8 | 11.7 | 27.4 | 0.87 |
-| 8 | 187.2 | 18.5 | 36.3 | 0.73 |
-| 16 | 199.1 | 16.5 | 59.5 | 0.77 |
-| 32 | 293.0 | 10.2 | 121.2 | 0.97 |
+| 4 | 10 | 24.5 (15.3, 31.3) | 12.4 (11.5, 15.6) | 13.8 (10.8, 17.5) |
+| 8 | 10 | 32.7 (23.6, 58.8) | 23.8 (20.5, 27.8) | 24.8 (17.9, 37.0) |
+| 16 | 10 | 68.2 (47.9, 97.5) | 36.3 (28.6, 43.8) | 43.0 (32.6, 59.9) |
+| 32 | 10 | 126.7 (91.4, 164.0) | 61.2 (46.1, 71.7) | 88.5 (62.5, 116.9) |
+
+**At n=10, `stats.iqm` does its actual job again** (it degrades to the plain
+mean below n=4 - the n=3 caveat that dominated the reading below no longer
+applies). Three-way read against `hybrid_or` and the unmatched `classical_or`,
+now all three legs at n=10, `P(matched > unmatched)` recomputed on all three
+statistics (not `greedy_best` alone):
+
+| R | hybrid_or (n=10) | classical_or unmatched (n=10) | classical_or_matched (n=10) | P(matched>unmatched) greedy_best | ...`final_performance` | ...`greedy_final` |
+|---|---|---|---|---|---|---|
+| 4 | 178.8 | 11.7 | 24.5 | 0.84 | **1.00** | 0.98 |
+| 8 | 187.2 | 18.5 | 32.7 | 0.73 | **1.00** | **1.00** |
+| 16 | 199.1 | 16.5 | 68.2 | 0.78 | 0.90 | 0.90 |
+| 32 | 293.0 | 10.2 | 126.7 | 0.98 | **1.00** | **1.00** |
+
+**This substantially strengthens, not just refreshes, the "matched beats
+unmatched" claim.** At n=3 the only evidence was `greedy_best` (0.73-0.97,
+the biased statistic) plus a hand-inspected, hedged per-episode check (below)
+that landed on "less dead than the unmatched control", explicitly NOT
+"alive" or "rising monotonically". At n=10, `final_performance` and
+`greedy_final` - neither of which rewards a noisy max - both put
+`P(matched>unmatched)` at 0.90-1.00 at every R. The direction was right
+before; the confidence behind it was not, and now is.
+
+**The per-episode reading immediately below is n=3-based (only s1-s3 were
+hand-inspected) and has NOT been redone against the now-available s4-s10.**
+Given `final_performance`'s `P(matched>unmatched)` jumped to 0.90-1.00 at
+n=10 (above), it is plausible the "intermittent, not sustained" read below
+undersells what a full 10-seed per-episode inspection would show - but that
+is a hypothesis, not yet checked directly, and this file's own standing rule
+is not to state a reading the data has not actually been read for. Flagged
+as a gap, not silently left stale and not filled in here.
 
 **Reading - corrected 2026-08-21 (later same day) after inspecting per-episode
 tail data, not just the summary means below. The first version of this
@@ -336,13 +401,16 @@ climbing.
 - **The hybrid-vs-matched comparison across R is not yet readable for shape**
   (see below) for the same n=3-vs-n=10 reason as before - only "substantially
   below the hybrid, at every R measured so far" is supported.
-- **n=3 - coverage only**, and the next candidate for the robustness pass (see
-  the dated plan note below) - specifically because unlike `classical_or`, it
-  is no longer uniformly dead, so more seeds here would let IQM start doing
-  its job rather than repeat a null reading.
-- ROBUSTNESS (B) is done for `hybrid_or`/`classical_or` (n=10). It is NOT yet
-  done for `classical_or_matched_r{R}` (n=3, today) - and see the open design
-  question below before that pass is run.
+- **UPDATE 2026-08-30: no longer n=3.** This bullet and the "NOT yet done"
+  one below described the state as of 2026-08-21; `classical_or_matched_r{R}`
+  is n=10 now (see the update above) and IQM does its actual trimming job on
+  the summary statistics. The per-episode INTERMITTENCY claim two bullets up
+  is the part that has not been re-verified at n=10 - see the flag placed
+  right before that paragraph.
+- ROBUSTNESS (B) is DONE for `hybrid_or`/`classical_or` AND for
+  `classical_or_matched_r{R}` (both n=10, as of the 2026-08-30 update above) -
+  the plan note below is satisfied and can be treated as completed, not
+  pending.
 
 ### UPDATE 2026-08-21 (later same day) - exp01's `matched_classical` is architecturally SMALLER than exp02's `classical_or_matched_r4`, not the same control at a different R
 
@@ -436,13 +504,14 @@ ablation for later - `classical_or_matched_fixed126` (fixed budget = 126,
 `HYBRID_FIG4`'s bare total, not growing with R) - not implemented, not
 scheduled, just recorded so the idea is not lost.
 
-### PLAN, confirmed and NOT yet launched
+### PLAN - DONE (found completed 2026-08-30, see the UPDATE above)
 
 `classical_or_matched_r{R}` is the cleanest live-vs-live signal in the
-repository (see the reading above) and is already flagged as the next
-robustness candidate. **Agreed order once exp04b finishes and frees compute:
-`classical_or_matched_r{R}` to 8-10 seeds is the next thing run, ahead of any
-other pending item.** Not launched yet - awaiting explicit go-ahead.
+repository (see the reading above) and was flagged as the next robustness
+candidate. **This is no longer pending: found at n=10 on disk when adding
+`greedy_final`** - see the dated update in the reading above for the numbers
+and what changed. Kept here, struck through in spirit, so the history of the
+decision is not lost.
 
 ## Experiment 03 - Data Reuploading (DR) under DQN - COVERAGE DONE
 
@@ -499,17 +568,30 @@ same sweep with `ent=False`, where every depth has zero effective entangling
 blocks. Both metrics reported, IQM with 95% bootstrap CI, per the
 STATISTICS.md checklist.
 
-| L | ent | n | greedy_best IQM (CI) | final_performance IQM (CI) |
-|---|---|---|---|---|
-| 1 | True  | 10 | 16.6 (11.3, 25.2) | 10.1 (9.9, 10.5) |
-| 1 | False | 10 | 23.6 (13.8, 38.7) | 10.0 (9.7, 11.7) |
-| 2 | True  | 10 | 55.5 (42.3, 75.6) | 30.2 (23.8, 37.2) |
-| 2 | False | 10 | 60.5 (46.0, 94.7) | 34.5 (28.7, 41.1) |
-| 5 | True  | 10 | 121.3 (60.6, 189.7) | 37.7 (24.6, 49.7) |
-| 5 | False | 10 | 85.9 (55.9, 196.1) | 41.8 (38.2, 50.6) |
+| L | ent | n | greedy_best IQM (CI) | `final_performance` IQM (CI) | `greedy_final` IQM (CI) |
+|---|---|---|---|---|---|
+| 1 | True  | 10 | 16.6 (11.3, 25.2) | 10.1 (9.9, 10.5) | 9.8 (9.3, 10.7) |
+| 1 | False | 10 | 23.6 (13.8, 38.7) | 10.0 (9.7, 11.7) | 9.8 (9.6, 12.2) |
+| 2 | True  | 10 | 55.5 (42.3, 75.6) | 30.2 (23.8, 37.2) | 40.2 (29.9, 51.7) |
+| 2 | False | 10 | 60.5 (46.0, 94.7) | 34.5 (28.7, 41.1) | 35.0 (29.5, 54.6) |
+| 5 | True  | 10 | 121.3 (60.6, 189.7) | 37.7 (24.6, 49.7) | 73.7 (38.4, 108.3) |
+| 5 | False | 10 | 85.9 (55.9, 196.1) | 41.8 (38.2, 50.6) | 47.3 (41.6, 104.5) |
 
-P(a random exp03 [ent=True] run > a random exp03b [ent=False] run), on
-`greedy_best`, n=10 vs n=10: **L=1: 0.39, L=2: 0.42, L=5: 0.54.**
+P(a random exp03 [ent=True] run > a random exp03b [ent=False] run), n=10 vs
+n=10, all three statistics (2026-08-30 - `greedy_final` added):
+**L=1: 0.39 / 0.60 / 0.38. L=2: 0.42 / 0.35 / 0.57. L=5: 0.54 / 0.45 / 0.53.**
+(`greedy_best` / `final_performance` / `greedy_final`, in that order.)
+
+**This does NOT change the FIX-07 reading, even though L=5's `greedy_final`
+IQMs (73.7 vs 47.3) look like a large gap by eye.** The comparison statistic
+that actually matters here is `P(ent=True>False)`, and on `greedy_final` it
+is 0.53 - essentially identical to `greedy_best`'s 0.54, both barely above
+chance. A large IQM gap with heavily overlapping per-seed distributions can
+still give P≈0.5; that is exactly why this project reports
+`probability_of_improvement` rather than comparing IQMs by eye, and this is
+the case that justifies keeping the discipline. **Conclusion unchanged:
+entanglement is not what drives the depth effect, on all three metrics now,
+not just the original two.**
 
 **Reading - this changes two things at once, in different directions.**
 
@@ -623,14 +705,24 @@ rate is a 100-episode rolling mean (the return is a single bit, so this IS the
 success rate); `greedy_best` here is the greedy-policy success rate over 20
 eval episodes, same 0-1 scale. IQM with 95% bootstrap CI.
 
-| arm | FIX-01 | n | success IQM (CI) | greedy IQM (CI) | phantom frac |
-|---|---|---|---|---|---|
-| frozen_onehot_mlp | off | 10 | 1.000 (0.998, 1.000) | 1.0 (1.0, 1.0) | 0.1323 |
-| frozen_onehot_mlp | on | 10 | 1.000 (0.998, 1.000) | 1.0 (1.0, 1.0) | 0.1321 |
-| frozen_scalar_mlp_large | off | 10 | 0.448 (0.318, 0.590) | 0.0 (0.0, 0.2) | 0.0456 |
-| frozen_scalar_mlp_large | on | 10 | 0.362 (0.322, 0.438) | 0.0 (0.0, 0.0) | 0.0471 |
-| frozen_matched_scalar | off | 10 | 0.055 (0.040, 0.072) | 0.0 (0.0, 0.0) | 0.0365 |
-| frozen_matched_scalar | on | 10 | 0.052 (0.037, 0.087) | 0.0 (0.0, 0.0) | 0.0383 |
+| arm | FIX-01 | n | success IQM (CI) | greedy IQM (CI) | `greedy_final` IQM (CI) | phantom frac |
+|---|---|---|---|---|---|---|
+| frozen_onehot_mlp | off | 10 | 1.000 (0.998, 1.000) | 1.0 (1.0, 1.0) | 1.0 (1.0, 1.0) | 0.1323 |
+| frozen_onehot_mlp | on | 10 | 1.000 (0.998, 1.000) | 1.0 (1.0, 1.0) | 1.0 (1.0, 1.0) | 0.1321 |
+| frozen_scalar_mlp_large | off | 10 | 0.448 (0.318, 0.590) | 0.0 (0.0, 0.2) | 0.0 (0.0, 0.0) | 0.0456 |
+| frozen_scalar_mlp_large | on | 10 | 0.362 (0.322, 0.438) | 0.0 (0.0, 0.0) | 0.0 (0.0, 0.0) | 0.0471 |
+| frozen_matched_scalar | off | 10 | 0.055 (0.040, 0.072) | 0.0 (0.0, 0.0) | 0.0 (0.0, 0.0) | 0.0365 |
+| frozen_matched_scalar | on | 10 | 0.052 (0.037, 0.087) | 0.0 (0.0, 0.0) | 0.0 (0.0, 0.0) | 0.0383 |
+
+**`greedy_final` adds nothing new here (2026-08-30) - and that is itself the
+useful confirmation.** `frozen_onehot_mlp` is at a clean 1.0 and
+`frozen_scalar_mlp_large`/`frozen_matched_scalar` at a clean 0.0 on BOTH the
+max (`greedy`) and the last-3-checkpoint mean (`greedy_final`) - these three
+arms are not merely peaking-then-decaying at the tail end of training, they
+are stably at their respective floor/ceiling by the time evaluation catches
+them. No reading changes; this is the boring, reassuring case
+`docs/STATISTICS.md` predicts for an arm whose greedy checkpoints do not
+fluctuate near the end of a run.
 
 **GATE: PASSES, comfortably.** `frozen_onehot_mlp` reaches success 1.000 at
 every seed (min observed 0.99) - the regime is unambiguously alive, and stage 2
@@ -725,16 +817,32 @@ launched despite being part of the original stage-2 design
 (`docs/EXPERIMENT-04.md` section 4's ablation row). Do not read this table as
 closed.**
 
-| arm | n | best_ma (max, biased) IQM (CI) | `final_performance` IQM (CI) | greedy IQM (CI) | phantom frac |
-|---|---|---|---|---|---|
-| `frozen_scalar_1q_L1` | 10 | 0.048 (0.040, 0.057) | 0.000 (0.000, 0.000) | 0.000 (0.000, 0.000) | 0.0338 |
-| `frozen_scalar_1q_L5` | 3 | 0.307 (0.040, 0.800) | 0.110 (0.000, 0.305) | 0.000 (0.000, 0.000) | 0.0397 |
-| `frozen_scalar_1q_L10` | 3 | 0.480 (0.060, 0.780) | 0.199 (0.000, 0.387) | 0.000 (0.000, 0.000) | 0.0430 |
-| `frozen_scalar_1q_L15` | 1 - N/A | 0.080 | 0.008 | 0.000 | 0.0486 |
-| `frozen_binary_4q_L1` (ent=True) | 3 | 0.033 (0.030, 0.040) | 0.000 (0.000, 0.000) | 0.000 (0.000, 0.000) | 0.0297 |
-| `frozen_binary_4q_L5` (ent=True) | 3 | 0.993 (0.980, 1.000) | 0.948 (0.943, 0.953) | **1.000 (1.000, 1.000)** | 0.0876 |
-| `frozen_binary_4q_noent_L1` | 0 | - | - | - | - |
-| `frozen_binary_4q_noent_L5` | 0 | - | - | - | - |
+| arm | n | best_ma (max, biased) IQM (CI) | `final_performance` IQM (CI) | greedy IQM (CI) | `greedy_final` IQM (CI) | phantom frac |
+|---|---|---|---|---|---|---|
+| `frozen_scalar_1q_L1` | 10 | 0.048 (0.040, 0.057) | 0.000 (0.000, 0.000) | 0.000 (0.000, 0.000) | 0.000 (0.000, 0.000) | 0.0338 |
+| `frozen_scalar_1q_L5` | 3 | 0.307 (0.040, 0.800) | 0.110 (0.000, 0.305) | 0.000 (0.000, 0.000) | 0.000 (0.000, 0.000) | 0.0397 |
+| `frozen_scalar_1q_L10` | 3 | 0.480 (0.060, 0.780) | 0.199 (0.000, 0.387) | 0.000 (0.000, 0.000) | 0.000 (0.000, 0.000) | 0.0430 |
+| `frozen_scalar_1q_L15` | 1 - N/A | 0.080 | 0.008 | 0.000 | 0.000 | 0.0486 |
+| `frozen_binary_4q_L1` (ent=True) | 3 | 0.033 (0.030, 0.040) | 0.000 (0.000, 0.000) | 0.000 (0.000, 0.000) | 0.000 (0.000, 0.000) | 0.0297 |
+| `frozen_binary_4q_L5` (ent=True) | 3 | 0.993 (0.980, 1.000) | 0.948 (0.943, 0.953) | **1.000 (1.000, 1.000)** | **0.889 (0.667, 1.000)** | 0.0876 |
+| `frozen_binary_4q_noent_L1` | 0 | - | - | - | - | - |
+| `frozen_binary_4q_noent_L5` | 0 | - | - | - | - | - |
+
+**`greedy_final` (2026-08-30) nuances the one arm that looked cleanly solved:
+`frozen_binary_4q_L5` is 1.000 on `greedy_best` but only 0.889 on
+`greedy_final`.** Per-seed checkpoint series (10 checkpoints each, `[0,1]`
+per checkpoint since a single eval batch here already collapses to
+solved-or-not - see the methodological point below): s1 reaches 1 by
+checkpoint 5 and stays there (last 3 = `[1,1,1]`, greedy_final=1.0); s2
+similarly (last 3 = `[1,1,1]`, 1.0); **s3 only reaches 1 at its LAST TWO
+checkpoints** (`[0,0,0,0,0,0,0,0,1,1]`, last 3 = `[0,1,1]`, 0.667) - IQM at
+n=3 degrades to the mean, (1.0+1.0+0.667)/3 = 0.889. One of three seeds was
+still converging, not stably solved, as of the second-to-last checkpoint -
+information `greedy_best`'s max erases entirely. Does not overturn "this arm
+is NOT a degenerate cycle" (2/3 seeds solved cleanly, the third solved late
+rather than not at all), but "clean 1.000, unlike everything else in this
+table" is now "1.000 for 2 of 3 seeds, converging late for the third" -
+worth the more precise statement.
 
 **Methodological finding: what `greedy IQM = 0.000` means here is a
 separation between the LEARNED VALUE and the INDUCED POLICY, not "the agent
@@ -777,35 +885,58 @@ assumed): `0 --RIGHT--> 1 --RIGHT--> 2 --RIGHT--> 3`, then RIGHT forever - the
 4x4 grid clips a RIGHT at the last column, so state 3 is a **self-loop under
 this policy** (`state 3 --RIGHT--> state 3`, verified against the simulator).
 
-**The two diagnoses are mechanically the same finding, not one finding
-described twice.** Different specific trajectories, same structural cause -
-put side by side, that is the point:
+**A third from-scratch retrain, same spec again, landed back on the ORIGINAL
+trajectory - `0 <-> 4`, DOWN then UP - this time with the Q-gap actually
+measured, not just described:**
 
-| | earlier session (unreproducible, description only) | this session (reproduced, weights saved) |
-|---|---|---|
-| trap | 2-state cycle: `0 <-> 4` (DOWN, then UP) | 1-state self-loop: `0->1->2->3`, then `3->3` (RIGHT against the grid edge) |
-| trapping argmax | DOWN at state 0 / UP at state 4 | RIGHT at state 3 |
-| top1-top2 Q-gap at the trapping state | ~0.01-0.02 (unverifiable now) | 0.165 |
-| Q magnitude at that state | not recorded | ~18.7 |
-| gap as a fraction of magnitude | order 0.1% (if the number holds) | **0.9%** |
-| escaped by epsilon-greedy during training? | not measured then | yes - measured below |
+| state | Q(LEFT, DOWN, RIGHT, UP) | argmax | gap (top1-top2) |
+|---|---|---|---|
+| 0 (start) | 1.381, **1.391**, 1.379, 1.389 | DOWN | **0.002** |
+| 4 | 1.391, 1.316, 0.039, **1.409** | UP | **0.018** |
 
-Two independent instances of "the deterministic argmax gets trapped by a
-sub-1%-of-magnitude margin, in a deterministic sparse-reward environment" are
-worth more than one instance that happens to be exactly repeatable - a single
-lucky (or unlucky) run inflates the risk that "0.01-0.02" was itself a
-coincidence of that one training trajectory, not a property of the regime.
-Two DIFFERENT traps, arrived at independently, both showing the identical
-signature (large structured Q-values, argmax decided by well under 1% of
-that magnitude, in a domain where determinism turns "close" into "wrong
-forever") is the stronger claim, not a weaker one. **The general claim - the
-induced policy is trapped by a hairline argmax decision the learned VALUES do
-not obviously call for - is what is robust here, not any one trajectory or
-gap number; do not requote "0<->4" or "0.01-0.02" as if they were this run's
-numbers.**
+0.018 at state 4 lands almost exactly on the original description's
+"~0.01-0.02" - the first time that number has been independently measured
+rather than recalled. Rollout, verified against the simulator: `0 --DOWN-->
+4 --UP--> 0`, closed. All 10 greedy-evaluation episodes at this checkpoint
+run the full 100 steps (`[100, 100, 100, 100, 100, 100, 100, 100, 100,
+100]`) - expected, and see the methodological note in
+`docs/EXPERIMENT-04.md`'s Metric section on why 10 (or 20) greedy-eval
+episodes here are not 10 independent confirmations of anything.
 
-Training-time (epsilon-greedy) behaviour, from the same run's episode CSV,
-last 300 episodes (`length` recovered as `diff(global_step)`, since the CSV
+Full action table for this run, all 16 states, for anyone who wants to check
+the rest of the policy rather than trust the two trapping states alone:
+
+| state | argmax | | state | argmax | | state | argmax | | state | argmax |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | DOWN | | 4 | UP | | 8 | UP | | 12 | DOWN |
+| 1 | UP | | 5 | RIGHT | | 9 | LEFT | | 13 | UP |
+| 2 | UP | | 6 | UP | | 10 | DOWN | | 14 | DOWN |
+| 3 | UP | | 7 | UP | | 11 | DOWN | | 15 | DOWN |
+
+**Three runs, not a rate.** With this third run, the `0<->4` trajectory has
+now been seen twice (the original description and this one, gaps ~0.01-0.02
+and 0.018 - close enough to be the same finding) against the state-3
+self-loop seen once. **This is a count, not a frequency, and must not be
+read as one**: the three runs are not equivalent samples of one population -
+nothing records what else may have differed between the machines/sessions
+that produced them, and `docs/CORRECTIONS.md#fix-10` (found while chasing
+exactly this discrepancy) shows the nominal seed does not even guarantee
+that much. What is defensible is narrower and does not need the
+count to hold up: the MECHANISM is stable across all three runs (a
+razor-thin argmax margin - order 0.1-1% of the Q magnitude at the trapping
+state - decides a deterministic policy's fate in a deterministic,
+sparse-reward environment), while the specific trajectory it lands on is
+not. Two DIFFERENT trajectories arrived at independently is still the
+stronger claim about the mechanism than one exactly-repeatable instance
+would have been - it rules out "that one run's `0.01-0.02` was a fluke of a
+single training trajectory, not a property of the regime" - but "two vs
+one" describes what was observed, not an estimated rate of anything. **Do
+not requote "0<->4" or "0.01-0.02" as an established number independent of
+which run produced it; cite the specific run's own table instead.**
+
+Training-time (epsilon-greedy) behaviour, from the SECOND run's episode CSV
+(the `0->1->2->3`-then-self-loop one, not the third run just above), last
+300 episodes (`length` recovered as `diff(global_step)`, since the CSV
 records `episode_n, ep_reward, global_step` and not length directly). This is
 the quantification of the value/policy dissociation, not a footnote to it -
 tabulated, not just described:
@@ -838,7 +969,11 @@ itself cannot," not as ordinary training-vs-evaluation variance.
 
 `frozen_binary_4q_L5` is the exception that fits the pattern from the other
 side: its greedy IQM is a clean 1.000, so whatever it converged to is NOT a
-degenerate cycle - the only arm in this table where that is true.
+degenerate cycle - the only arm in this table where that is true. Its
+`greedy_final` of 0.889, not 1.000 (see the note above), refines rather than
+reverses this: 2 of 3 seeds are stably solved, the third solved late in
+training - still not a cycle, but not uniformly stable from mid-training
+onward either.
 
 ---
 

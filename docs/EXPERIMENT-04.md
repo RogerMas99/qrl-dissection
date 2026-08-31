@@ -198,23 +198,35 @@ zero-reward absorbing loop rather than any path to the goal. See
 `docs/RESULTS-LOG.md`'s exp04 stage-2 update for the exact Q-value table and
 the verified greedy rollout.
 
-**Two independent instances, not one repeated description.** A from-scratch
-re-run of the identical spec (same arm, seed, `DQN_KWARGS`,
-`total_timesteps`) landed in a DIFFERENT specific trap than an earlier
-session's now-unreproducible description - `0<->4` (DOWN/UP) there,
-`0->1->2->3` then a self-loop at 3 (RIGHT against the grid edge) here. That
-is `docs/CORRECTIONS.md#fix-10`: `DQN(seed=...)` never seeds epsilon-greedy's
+**Three runs, two trajectories, not one repeated description.** Three
+from-scratch re-runs of the identical spec (same arm, seed, `DQN_KWARGS`,
+`total_timesteps`) produced: the original session's now-unreproducible
+description (`0<->4`, DOWN/UP, "~0.01-0.02"), a second run landing in a
+DIFFERENT trap (`0->1->2->3` then a self-loop at 3, RIGHT against the grid
+edge, gap 0.165), and a third run landing back on `0<->4` with the gap this
+time actually measured (0.002 at state 0, 0.018 at state 4 - see
+`docs/RESULTS-LOG.md`'s exp04 stage-2 update for the full table). That is
+`docs/CORRECTIONS.md#fix-10`: `DQN(seed=...)` never seeds epsilon-greedy's
 action sampler, so this project's reproducibility is statistical (N seeds, an
 IQM, a CI), not bit-identical - re-running one nominal seed is not guaranteed
-to replay the same trajectory. Rather than a weakness, two DIFFERENT traps
-showing the SAME signature (large, structured Q-values; argmax decided by
-well under 1% of that magnitude; a deterministic domain that turns "close" at
-one step into "wrong forever") is stronger evidence for the mechanism than
-one exactly-repeatable instance would have been - it is not one lucky
-coincidence, it is the regime.
+to replay the same trajectory.
+
+**Read this as a count, not a rate.** `0<->4` has now recurred (twice) where
+the state-3 self-loop has not (once), but three runs from one machine are
+not equivalent samples of one population - nothing here records what else
+may have differed between them, and FIX-10 is precisely why the nominal
+seed cannot be assumed to equalise that. The claim that survives is
+narrower: the MECHANISM is stable across all three (large, structured
+Q-values; argmax decided by well under 1% of that magnitude; a
+deterministic domain that turns "close" at one step into "wrong forever"),
+the specific trajectory is not - two DIFFERENT trajectories, arrived at
+independently, is still stronger evidence for that mechanism than one
+exactly-repeatable instance would have been, but it is not evidence of a
+frequency. Do not requote "0<->4" or "0.01-0.02" as an established number
+independent of which run produced it.
 
 Under epsilon-greedy TRAINING this matters concretely, not just in
-principle - quantified, not just described, from the same run's last 300
+principle - quantified, not just described, from the SECOND run's last 300
 training episodes (`length` recovered as `diff(global_step)`):
 
 | outcome (last 300 training episodes) | share |
@@ -239,6 +251,40 @@ the primary reported statistic in this environment, with more reason than in
 CartPole (not merely a preference, as the paragraph above already states) -
 and a caution for reading any `best_ma`/`final_performance` number here
 without its `greedy` counterpart alongside it.
+
+**A methodological point this table's own numbers surface: greedy evaluation
+in this environment has exactly ONE effective sample per checkpoint, not
+`n_episodes`.** `FrozenLake-v1` here starts every episode at the same fixed
+cell (state 0, the only `S` on the map) and is fully deterministic
+(`is_slippery=False`); the greedy policy itself is a deterministic function
+of the (fixed, evaluation-time) Q-network. `env.reset(seed=...)` therefore
+cannot change the outcome - the seed feeds an RNG that a deterministic
+environment with a fixed start never consults - so all `n_episodes` rollouts
+at one checkpoint are the SAME trajectory, not `n_episodes` independent
+draws. This is not inferred: it is exactly what the tables above already
+show directly - all 10 (and, in the third run above, all 20) greedy-eval
+episodes at a given checkpoint land on IDENTICAL lengths, every time this
+has been checked. **Practical consequence: `greedy`'s reported CI is a CI
+over N TRAINING seeds - the only axis of real variation - never over
+`n_episodes`; averaging `n_episodes` identical values changes nothing about
+the reported number, but reading `n_episodes=20` as 20 confirmations of
+anything would overstate how much evidence one checkpoint carries.** This is
+specific to FrozenLake's fixed start + determinism; exp01's CartPole DOES
+randomise its initial state per `env.reset(seed=...)`, so the same 20/5
+episodes there are genuinely independent draws and this caveat does not
+transfer.
+
+**Compute follow-up, not fixed here.** The consequence above means
+`dqn/safe.py::evaluate_greedy`'s `n_episodes=20` (exp04's own
+`eval_cfg_for`) spends 20 full rollouts per checkpoint to produce ONE
+informative number, on every one of the ~10 checkpoints a 100k-step run
+fires (`every_steps=10_000`) - roughly 200 rollouts per cell where 10 would
+carry the identical information. Each rollout is cheap relative to a
+training step (no gradient, `torch.no_grad()`, at most 100 env steps), so
+this has not been worth interrupting a multi-day grid to fix, but it is real
+waste, quantifiable, and `n_episodes=1` (or a check that short-circuits
+after the first rollout on environments with no reset-time randomness) is
+the natural fix - recorded in `docs/ROADMAP.md`, not implemented.
 
 ### Staging
 
