@@ -566,6 +566,89 @@ any already-published number in this repo.
 
 ---
 
+## NEW-08 - four gaps in the arm registry, closed without a new circuit template
+
+**Not a correction. 17 new arms, flagged in a code review of `core/configs.py`
+(2026-09) and confirmed against the actual configs before registering anything -
+see the conversation this shipped from for the verification of each claim.**
+
+### GAP 1 - entanglement was never ablated on exp01/exp02's own arms
+
+`hybrid_fig4` (exp01) and `hybrid_or_r{R}` (exp02) are `ent=True` with no
+`ent=False` counterpart anywhere in this project's OWN capacity/OR campaigns -
+only FrozenLake's `frozen_binary_4q_noent_*` and exp07's replication
+`paper_skolik_4q_L{2,5}_noent` ablate it. Without this, a positive OR result
+cannot be attributed to entanglement specifically versus some other property
+of being a hybrid circuit (a genuinely different question from FIX-07, which
+is about depth confounding entanglement on the SAME arm).
+
+New arms: `hybrid_fig4_noent`, `hybrid_or_r{4,8,16,32}_noent` (5). Same
+8-qubit, L=5 circuit as `hybrid_fig4`/`hybrid_or_r{R}`, `ent=False`.
+`hybrid_or_config` gained an `ent: Optional[bool] = None` parameter (default
+keeps existing callers - exp02 - unchanged).
+
+### GAP 2 - DR and OR never cross
+
+exp02 sweeps R at L=5 fixed (`hybrid_or_config` never touches `n_layers_q`);
+exp03 sweeps L with OR off (`hybrid_dr_config` never sets
+`reuse_repetitions`). A reasonable design inherited from the reference study,
+but it means no cell in this project's own campaigns can show an
+INTERACTION between the two knobs, only their marginal effects at one fixed
+setting of the other.
+
+New arms: `hybrid_DR{1,2}_OR{4,8,16,32}` (8), via the new
+`hybrid_dr_or_config(n_layers_q, reuse_repetitions)`. L=5 is excluded - exp02
+already covers L=5 x every R in full.
+
+### GAP 3 - the additive Fourier ceiling never covered FrozenLake Config A
+
+`core/fourier_ceiling.py`'s ceiling only had a FrozenLake arm for Config B
+(`frozen_binary_4q_fourier_ceiling`). Config A (`frozen_scalar_1q_L{...}`,
+`circ_type="skolik"`, `n_qubits=1`) passes `check_additive_embedding` exactly
+as CartPole's `hybrid_fig4` does - not blocked by the theory, simply never
+registered. Without it, Config A's depth sweep (1/5/10/15 - the deepest in
+the whole project) has no classical reference of the same hypothesis class.
+
+Unlike Config B's two-point domain (`{0, pi}`, where the sine features are
+identically zero and depth is provably irrelevant - see NEW-06's "FrozenLake
+Config B degeneracy" section), Config A's embedding is continuous, so depth
+genuinely changes the accessible frequency class: no single ceiling bounds
+every depth. New arms: `frozen_scalar_1q_fourier_ceiling_L{1,5,10,15}` (4),
+one per depth actually swept - the same precedent `cartpole_fourier_ceiling_L5`
+already set (bound the SPECIFIC circuit compared, not the deepest one in the
+sweep). Measured parameter counts (`(2L+1)*n_actions`, `n_actions=4`): 12 /
+44 / 84 / 124.
+
+### GAP 4 - the Hsiao circuit's own OR campaign sits at coverage (n=3), not robustness
+
+Not a new arm - `paper_hsiao_or_r{4,8,16,32}` and `_r{4,16}_ent` (exp07,
+`13_exp08_gaps_colab.ipynb`'s Tier 1) already exist at n=3
+(`12_cartpole_paper_replication_colab.ipynb`). Flagged alongside the other
+three because it is the same review: this project's OWN Output-Reuse
+campaign (exp02) runs on the Skolik/`HYBRID_FIG4`-derived circuit, while the
+reference paper's actual OR block (`post-pqc-inference.py`) uses the Hsiao
+circuit - a fact this file did not state anywhere before this entry. Topping
+Hsiao up to n=10 is what makes a robustness-grade comparison against exp02's
+own Skolik-based OR numbers possible on the SAME statistic discipline
+(`docs/STATISTICS.md`) this project already applies to everything else.
+
+### Verification before registering
+
+Every new arm's `build_arm_config(...)` and its `capacity.build_agent_for`
+construction (parameter counts included) were run and inspected directly -
+not assumed from the pattern of an existing arm - before being added here.
+The full test suite (200 passed, 1 skipped) was re-run after the addition
+and shows no regression.
+
+### Scope
+
+Additions only - 17 new registry entries and one widened function signature
+(`hybrid_or_config`'s new `ent` parameter, backward-compatible). No existing
+arm's configuration changes, and nothing here touches any number already
+published in `docs/RESULTS-LOG.md`.
+
+---
+
 ## FIX-05
 
 **A `Discrete` observation space cannot be run by upstream's DQN at all.**

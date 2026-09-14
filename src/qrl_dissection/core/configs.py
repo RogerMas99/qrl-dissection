@@ -30,7 +30,7 @@ liveness guard (`frozen_onehot_mlp`).
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import torch.nn as nn
 
@@ -150,6 +150,62 @@ DR_DEPTHS = [1, 2, 5]           # Data Reuploading depths L (Fig. 4 uses 5)
 # time.
 for _R in OR_REPEATS:
     ARMS[f"hybrid_or_r{_R}"] = ("hybrid", hybrid_or_config(_R))
+
+
+# ---------------------------------------------------------------------------
+# [exp08 follow-up] Three gaps flagged in a code review of this registry, none
+# requiring a new circuit template - just missing crossings of knobs that
+# already exist. See docs/CORRECTIONS.md#new-08 for the fuller argument each
+# one is answering.
+#
+# GAP 1 - entanglement was never ablated on exp01/exp02's own arms.
+# `hybrid_fig4` and `hybrid_or_r{R}` are `ent=True` with no `ent=False`
+# counterpart anywhere in THIS project's capacity/OR campaigns (only
+# FrozenLake's `frozen_binary_4q_noent_*` and exp07's replication
+# `paper_skolik_4q_L{2,5}_noent` ablate it). Without this, a positive OR
+# result cannot be attributed to entanglement specifically versus some other
+# property of being a hybrid circuit.
+def hybrid_or_config(reuse_repetitions: int, ent: Optional[bool] = None) -> Dict[str, Any]:
+    """HYBRID_FIG4 plus Output Reuse of factor `reuse_repetitions`.
+
+    `ent=None` (default) keeps HYBRID_FIG4's own ent=True unchanged - existing
+    callers (exp02) are unaffected. `ent=False` builds the noent counterpart
+    used by the arms below.
+    """
+    cfg = dict(HYBRID_FIG4)
+    cfg["reuse_repetitions"] = int(reuse_repetitions)
+    if ent is not None:
+        cfg["ent"] = bool(ent)
+    return cfg
+
+
+ARMS["hybrid_fig4_noent"] = ("hybrid", dict(HYBRID_FIG4, ent=False))
+for _R in OR_REPEATS:
+    ARMS[f"hybrid_or_r{_R}_noent"] = ("hybrid", hybrid_or_config(_R, ent=False))
+
+
+# GAP 2 - DR and OR never cross. exp02 sweeps R at L=5 fixed; exp03 sweeps L
+# with OR off. Reasonable as a design inherited from the reference study, but
+# it means no cell in this project's own campaigns can show an interaction
+# between the two knobs - only their marginal effects. This crosses the two
+# OR REPEATS values against the two DR depths not already covered by L=5
+# (which exp02 already sweeps in full).
+def hybrid_dr_or_config(n_layers_q: int, reuse_repetitions: int) -> Dict[str, Any]:
+    """HYBRID_FIG4 with BOTH circuit depth and Output Reuse set - the
+    crossing neither exp02 (fixed L=5) nor exp03 (OR off) exercises."""
+    cfg = dict(HYBRID_FIG4)
+    cfg["n_layers_q"] = int(n_layers_q)
+    cfg["reuse_repetitions"] = int(reuse_repetitions)
+    return cfg
+
+
+for _L in (1, 2):          # L=5 x R already covered in full by exp02
+    for _R in OR_REPEATS:
+        ARMS[f"hybrid_DR{_L}_OR{_R}"] = ("hybrid", hybrid_dr_or_config(_L, _R))
+
+
+# GAP 3 (FrozenLake Config A Fourier ceiling) is registered further down,
+# right after FROZEN_DR_A is defined - see that section.
 
 
 # ---------------------------------------------------------------------------
@@ -372,6 +428,22 @@ for _L in FROZEN_DR_B:
     ARMS[f"frozen_binary_4q_noent_L{_L}"] = ("hybrid", frozen_binary_config(_L, ent=False))
 ARMS["frozen_onehot_mlp"] = ("classic", FROZEN_ONEHOT_MLP)
 ARMS["frozen_scalar_mlp_large"] = ("classic", FROZEN_SCALAR_MLP_LARGE)
+
+# [exp08 follow-up, GAP 3] The additive Fourier ceiling only covered Config B
+# (`frozen_binary_4q_fourier_ceiling`, below). Config A (circ_type='skolik',
+# n_qubits=1) passes `check_additive_embedding` exactly as CartPole's
+# `hybrid_fig4` does - not blocked, just never registered. Unlike Config B's
+# two-point domain, Config A's embedding is continuous, so depth genuinely
+# changes the accessible frequency class (no single L bounds every depth) -
+# one ceiling per depth actually swept, matching the precedent
+# `cartpole_fourier_ceiling_L5` set below (bound the SPECIFIC circuit
+# compared, not the deepest one in the sweep).
+for _L in FROZEN_DR_A:
+    ARMS[f"frozen_scalar_1q_fourier_ceiling_L{_L}"] = (
+        "fourier_additive",
+        {"n_qubits": 1, "n_layers_q": _L, "circ_type": "skolik",
+         "transform_fn": "frozen_scalar"},
+    )
 
 
 # ---------------------------------------------------------------------------
