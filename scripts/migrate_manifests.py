@@ -66,6 +66,12 @@ KNOWN_KWARGS = {
     "exp03b_dqn_cartpole_dr_unentangled": CARTPOLE_KWARGS,
     "exp04_dqn_frozenlake_embeddings": {"batch_size": 128, "buffer_size": 50_000,
                                         "train_frequency": 1, "learning_starts": 1_000},
+    # 12_cartpole_paper_replication_colab.ipynb and 13_exp08_gaps_colab.ipynb both
+    # write manifests directly through RunSpec/run_grid, so nothing landing here
+    # is actually legacy - these entries only matter if a hand-edited or
+    # otherwise incomplete manifest ever shows up in one of these two folders.
+    "exp07_dqn_cartpole_paper_replication": CARTPOLE_KWARGS,
+    "exp08_dqn_cartpole_frozenlake_followups": CARTPOLE_KWARGS,
 }
 # The pre-adoption folder names, so migration works before or after
 # scripts/adopt_legacy_layout.py has run.
