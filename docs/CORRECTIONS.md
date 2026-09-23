@@ -12,7 +12,7 @@ paper's published results at all.
 | ID | What | Affects the paper's published results? |
 |----|------|----------------------------------------|
 | [FIX-01](#fix-01) | Autoreset phantom transition poisons the replay buffer | No - PPO has no replay buffer |
-| [FIX-02](#fix-02) | `OutputScale` never reaches the model | No - DQN branch only; softmax is scale-invariant |
+| [FIX-02](#fix-02) | `OutputScale` never reaches the model | No - DQN branch only, never reached by PPO's actor-critic construction at all. Nor does it affect any of THIS project's own experiments: no arm ever requests `use_output_scaling` (see the entry) |
 | [FIX-03](#fix-03) | `agent_type="classic"` is unresolvable | Their experiment script 2 does not run as published |
 | [FIX-04](#fix-04) | Dependency pins do not import | The published artefact cannot be installed as specified |
 | [FIX-05](#fix-05) | `Discrete` observation spaces unusable under DQN | No - the chapter's FrozenLake run is PPO |
@@ -105,8 +105,32 @@ large weights - precisely what output scaling exists to avoid (Skolik et al.,
 2022). This is a live suspect for the underperformance of the hybrid arm under
 DQN.
 
-**Scope.** `is_qnet` branch only, i.e. DQN. Under PPO the head feeds a softmax,
-which is scale-invariant, so the published results do not depend on it.
+**Scope.** `is_qnet` branch only, i.e. DQN - checked directly against
+`HybridAgent.__init__`: `use_output_scaling`/`OutputScale` are referenced
+nowhere in the `else` (actor-critic, PPO) branch, so the published paper's
+PPO results do not depend on this bug at all, for a structural reason, not a
+numerical one. (An earlier version of this note additionally argued PPO is
+safe because "the head feeds a softmax, which is scale-invariant" - that
+claim is wrong and has been removed: softmax is invariant to an ADDITIVE
+shift of its logits, `softmax(x + c) = softmax(x)`, not to multiplicative
+scaling - `softmax(k*x)` for `k != 1` is exactly temperature scaling and
+does change the output distribution. Had `OutputScale` actually been wired
+into the PPO branch, softmax would not have cancelled it out. It is simply
+never reached there, which is reason enough on its own.)
+
+**Does this bug affect any experiment actually run in THIS project?** No.
+`grep -rn "use_output_scaling" src/qrl_dissection/core/configs.py` returns
+zero matches - no arm in this project's own registry ever requests output
+scaling, on the `is_qnet` branch or otherwise. Confirmed a second way,
+empirically rather than just by reading the config: `OutputScale` adds
+`act_dim` trainable parameters (a per-action scalar), and `hybrid_fig4`'s
+measured parameter count (126 = 80 quantum + 46 classical head, see
+`docs/RESULTS-LOG.md`) has no room for the 2 extra CartPole-sized parameters
+`OutputScale` would add - the patched and unpatched code produce IDENTICAL
+agents for every arm this project has actually trained. The fix is still
+correct and worth keeping (guarded, and load-bearing for any FUTURE arm that
+does set `use_output_scaling=True`), but it has changed zero numbers
+anywhere in `docs/RESULTS-LOG.md` to date.
 
 ---
 
