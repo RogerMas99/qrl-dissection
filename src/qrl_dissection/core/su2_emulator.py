@@ -50,6 +50,13 @@ Weight and embedding conventions - kept identical on purpose
 - Weight layout `(n_layers, 2, n_qubits)`, same as `build_skolik_qlayer`, so a
   trained `TorchLayer`'s weights can be copied in directly
   (`load_weights_from_torchlayer`).
+- Initial weights are drawn uniformly in [0, 2*pi), the default of
+  `qml.qnn.TorchLayer` (`init_method=uniform_(b=2*pi)`), which is what the
+  real circuit starts from. They used to start at exactly ZERO, which made a
+  freshly built emulator a different training problem from the real circuit
+  even though its forward/gradient agree weight-for-weight: see FIX-12 in
+  docs/CORRECTIONS.md. The equivalence-in-distribution claim above only holds
+  with matching initialisation.
 - Feature selection replicates `embeddings.angle_embedding` exactly: apply
   `transform_fn` first: then, if `indices` is given, select those features (one
   per wire); otherwise take the leading features if there are more of them
@@ -60,6 +67,7 @@ Weight and embedding conventions - kept identical on purpose
 
 from __future__ import annotations
 
+import math
 from typing import Any, Callable, Optional, Sequence
 
 import torch
@@ -112,7 +120,9 @@ class SU2SkolikEmulator(nn.Module):
         self.emb_indices = list(emb_indices) if emb_indices is not None else None
         self.transform_fn = transform_fn
         # Same layout as build_skolik_qlayer's weight_shapes = {"weights": (n_layers, 2, n_qubits)}.
-        self.weights = nn.Parameter(torch.zeros(self.n_layers, 2, self.n_qubits))
+        self.weights = nn.Parameter(
+            torch.empty(self.n_layers, 2, self.n_qubits).uniform_(0.0, 2.0 * math.pi)
+        )
 
     def _embed(self, data: torch.Tensor) -> torch.Tensor:
         """Reproduces embeddings.angle_embedding's feature selection exactly

@@ -56,6 +56,13 @@ sharp comparison — that is exp05.
   `paper_skolik_config` before reusing it) is the closest existing
   alternative; not included in this design by default because it would
   reintroduce the expensive-regime cost NEW-05 exists to avoid.
+  **UPDATE 2026-10-20 (FIX-12):** the first `su2_cartpole_L5` runs started the
+  emulator's weights at zero (the real circuit starts at U[0, 2pi)) and were not a
+  faithful stand-in: 5/10 seeds stuck at the floor, IQM 14.6. Rerun with the
+  corrected init (`tag=init2pi`): IQM 43.7, 0/10 dead, indistinguishable from the
+  real unentangled circuit `hybrid_fig4_noent` (42.5). Use the `init2pi` runs for
+  any entanglement contrast; the entangled `hybrid_fig4` (35.8) does not beat
+  them (P = 0.33).
 - `check_additive_embedding("skolik", 8, n_data=4)` — passes; CartPole's
   Skolik embedding is the cycling case NEW-05's equivalence test already
   covers (`skolik_8q_cartpole_L5`), so no new embedding logic is needed here,

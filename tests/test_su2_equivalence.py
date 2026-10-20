@@ -182,3 +182,31 @@ def test_throughput_reported():
         f"see docs/REUSE.md on not trusting a figure from elsewhere)"
     )
     assert t_emu > 0  # the only real assertion: it ran and produced a time
+
+
+# ---------------------------------------------------------------------------
+# [FIX-12] Initial weights must come from the same distribution as the real layer.
+#
+# Everything above compares emulator and TorchLayer weight-for-weight, so it
+# cannot see the initialisation. The emulator used to start at exactly zero
+# while qml.qnn.TorchLayer starts uniformly in [0, 2*pi); a freshly built
+# `su2_cartpole_L5` then trained as a different problem (5/10 seeds stuck at the
+# CartPole floor against 0/9 for the real unentangled circuit). Without this
+# test the "equivalence in distribution over seeds" claim in the module
+# docstring would be unchecked.
+# ---------------------------------------------------------------------------
+def test_initial_weights_follow_the_real_layer_distribution():
+    n_qubits, n_layers = 8, 50          # 800 weights: enough for a stable std
+    torch.manual_seed(0)
+    real = build_skolik_qlayer(n_qubits, n_layers, ent=False).weights.detach()
+    torch.manual_seed(1)
+    emu = SU2SkolikEmulator(n_qubits, n_layers).weights.detach()
+
+    assert tuple(emu.shape) == tuple(real.shape)
+    for name, w in (("real", real), ("emulator", emu)):
+        assert float(w.min()) >= 0.0 and float(w.max()) <= 2 * np.pi + 1e-6, name
+    # Uniform(0, 2*pi): mean = pi, std = 2*pi/sqrt(12) ~ 1.814.
+    for name, w in (("real", real), ("emulator", emu)):
+        assert abs(float(w.mean()) - np.pi) < 0.2, (name, float(w.mean()))
+        assert abs(float(w.std()) - 2 * np.pi / np.sqrt(12)) < 0.15, (name, float(w.std()))
+    assert float(emu.abs().max()) > 0.0, "emulator weights all zero again (FIX-12)"
