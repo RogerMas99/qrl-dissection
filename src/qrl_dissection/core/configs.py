@@ -485,6 +485,34 @@ ARMS["su2_frozen_scalar_1q_L5"] = ("su2", frozen_scalar_config(5))
 ARMS["su2_frozen_binary_4q_L1"] = ("su2", frozen_binary_config(1, ent=False))
 ARMS["su2_frozen_binary_4q_L5"] = ("su2", frozen_binary_config(5, ent=False))
 
+# [exp09] EXPLORATORY EXTENSION - not part of the thesis core (docs/EXPERIMENT-09.md).
+# Output Reuse crossed with the FrozenLake sweeps, on the SU(2) emulator
+# (unentangled circuits only - an entangled arm cannot exist in this family).
+# R = 1 means "no Output Reuse" and keeps the plain name; R > 1 appends _OR{R}.
+# Arms that were already registered above are left untouched.
+EXP09_FROZEN_REUSE = [1, 4, 16]
+EXP09_CONFIG_A_DEPTHS = [1, 5, 10, 15]
+EXP09_CONFIG_B_DEPTHS = [1, 2, 3, 5]
+
+
+def su2_frozen_arm_name(config: str, n_layers_q: int, reuse: int) -> str:
+    """`config` is 'scalar_1q' (Config A) or 'binary_4q' (Config B)."""
+    base = f"su2_frozen_{config}_L{int(n_layers_q)}"
+    return base if int(reuse) == 1 else f"{base}_OR{int(reuse)}"
+
+
+for _R in EXP09_FROZEN_REUSE:
+    for _L in EXP09_CONFIG_A_DEPTHS:
+        _cfg = frozen_scalar_config(_L)
+        if _R > 1:
+            _cfg["reuse_repetitions"] = _R
+        ARMS.setdefault(su2_frozen_arm_name("scalar_1q", _L, _R), ("su2", _cfg))
+    for _L in EXP09_CONFIG_B_DEPTHS:
+        _cfg = frozen_binary_config(_L, ent=False)
+        if _R > 1:
+            _cfg["reuse_repetitions"] = _R
+        ARMS.setdefault(su2_frozen_arm_name("binary_4q", _L, _R), ("su2", _cfg))
+
 ARMS["cartpole_fourier_ceiling_L5"] = (
     "fourier_additive",
     {"n_qubits": HYBRID_FIG4["n_qubits"], "n_layers_q": HYBRID_FIG4["n_layers_q"],
