@@ -22,6 +22,8 @@ paper's published results at all.
 | [FIX-09](#fix-09) | exp02's migrated manifests could not distinguish hybrid from classical | ours, not upstream's - and it silently defeats the OR block's own comparison |
 | [FIX-10](#fix-10) | `DQN(seed=...)` never seeds epsilon-greedy's action sampler | No - reproducibility here was always statistical (N seeds, IQM, CI), never bit-identical |
 | [FIX-11](#fix-11) | `SafeDQN`'s weight-saving crashed after training finished, on a relative `--outdir` | Ours, not upstream's - would have silently wasted every cell's compute on the FIRST real run using any experiment script's documented default invocation |
+| [FIX-12](#fix-12) | `SU2SkolikEmulator` started its quantum weights at exactly zero; the real circuit starts at U[0, 2pi) | Ours, not upstream's - made `su2_cartpole_L5` (exp06) a poor stand-in for the unentangled circuit; reran, now indistinguishable from it |
+| [FIX-13](#fix-13) | the Config A Fourier ceilings were trained with CartPole DQN hyper-parameters and their manifests declare FrozenLake's | Ours, not upstream's - the ceiling-vs-circuit comparison was not like-for-like; reran with matched hyper-parameters, the headline holds at L=10, 15 |
 
 ---
 
@@ -1330,3 +1332,144 @@ would have spent the FULL step budget of every cell before crashing on the
 weight-save, with nothing recorded to disk (no manifest - `train()` raises
 before `run_arm` can write one) and nothing to show for the compute. Caught
 before that happened, by the smoke run doing exactly its job.
+
+---
+
+## FIX-12
+
+**`SU2SkolikEmulator` initialised its quantum weights at exactly zero. The real
+circuit it stands in for (`build_skolik_qlayer`, a `qml.qnn.TorchLayer`) starts
+them uniformly in [0, 2*pi). A freshly built `su2_cartpole_L5` therefore trained
+as a different problem from the unentangled circuit, even though the two agree
+to 1e-6 weight for weight.**
+
+Found while assembling the results brief for the supervisor meeting: the
+emulator arm `su2_cartpole_L5` (exp06) and the real unentangled circuit
+`hybrid_fig4_noent` (exp08) are the same function class, yet gave very
+different training outcomes.
+
+### Mechanism
+
+`core/su2_emulator.py` built `self.weights = nn.Parameter(torch.zeros(...))`.
+`tests/test_su2_equivalence.py` copies the TorchLayer's weights into the
+emulator (`load_weights_from_torchlayer`) before comparing, so it checks forward
+output and gradients on the SAME weights and cannot see the initialisation. The
+module docstring's claim that the training-level equivalence holds "in
+distribution over seeds" silently assumed matching initialisation.
+
+Measured initial weights, 8 qubits, L=5: `su2_cartpole_L5` min = max = 0.000;
+`hybrid_fig4_noent` min 0.008, max 6.265, std 1.86.
+
+### Evidence - original runs against the corrected ones (CartPole, 100k steps, FIX-01 on)
+
+| arm | n | `final_perf` IQM (95 % CI) | `greedy_final` IQM | seeds stuck at the floor (<= 10.5) |
+|---|---|---|---|---|
+| `su2_cartpole_L5`, zero init (original) | 10 | 14.6 (9.6-25.7) | 19.0 | 5 / 10 |
+| `su2_cartpole_L5`, U[0, 2pi) init (`init2pi`) | 10 | **43.7 (41.8-49.4)** | 53.6 | 0 / 10 |
+| `hybrid_fig4_noent`, real PQC (exp08) | 9 | 42.5 (38.9-51.2) | 47.7 | 0 / 9 |
+| `hybrid_fig4`, real PQC, entangled | 10 | 35.8 (24.0-48.1) | 47.3 | 0 / 10 |
+
+P(new > original) = 1.00 (`final_perf`) / 0.90 (greedy). New emulator against the
+real unentangled circuit: P = 0.41 / 0.42 (0.50 = indistinguishable) - the
+emulator now behaves like the circuit it emulates.
+
+### Consequence
+
+The exp06 contrast "`hybrid_fig4` against `su2_cartpole_L5`" (P = 0.83 in favour
+of the entangled circuit) did not measure entanglement. With the corrected
+emulator the same contrast is P(entangled > unentangled) = 0.33 / 0.37 on
+`final_perf` / greedy: on the plain `hybrid_fig4` circuit entanglement gives no
+advantage, in agreement with the real-PQC contrast against `hybrid_fig4_noent`
+(0.33 / 0.43). `docs/EXPERIMENT-06.md` section 1's use of `su2_cartpole_L5` as
+"the noent counterpart" is valid only with the corrected initialisation.
+
+### Fix
+
+`SU2SkolikEmulator` now draws its weights from U[0, 2*pi), the default of
+`TorchLayer`. `tests/test_su2_equivalence.py::
+test_initial_weights_follow_the_real_layer_distribution` checks range, mean and
+std against the real layer and that the weights are not all zero. The arm was
+rerun with `tag="init2pi"` (`experiments/rerun_controlled_arms.py --group su2cp`,
+about 100 s per seed); **the original zero-init runs are kept on disk, untagged.**
+
+### Scope
+
+Affects only the `su2_cartpole_L5` results (exp06). The other `su2_*` arms
+(`su2_frozen_*`) are registered but were never run. NEW-05's evidence - forward
+output and gradients agree to 1e-6 on identical weights - is unaffected.
+
+---
+
+## FIX-13
+
+**The four FrozenLake Config A Fourier ceilings
+(`frozen_scalar_1q_fourier_ceiling_L{1,5,10,15}`) were trained with CartPole's
+DQN hyper-parameters while the circuits they are compared with use FrozenLake's,
+and the ceilings' manifests declare FrozenLake's anyway.**
+
+### Mechanism
+
+`notebooks/13_exp08_gaps_colab.ipynb` tier 0 passed the notebook-wide
+`DQN_KWARGS = {batch_size 128, buffer_size 10_000, train_frequency 10}` to a
+FrozenLake cell, leaving `learning_starts` at the library default of 10_000.
+exp04's standard (`experiments/exp04_dqn_frozenlake_embeddings.py`) is
+`buffer_size 50_000, train_frequency 1, learning_starts 1_000`.
+
+Evidence independent of the manifests: the first `losses/td_loss` point in
+TensorBoard is at step 10_100 for `frozen_scalar_1q_fourier_ceiling_L15 s3` (900
+points) against 1_100 for the circuit `frozen_scalar_1q_L15 s3` (990 points),
+i.e. `learning_starts` 10_000 against 1_000.
+
+The ceilings' manifests nevertheless declare `50_000 / 1 / 1_000`. How is not
+determined; `scripts/migrate_manifests.py` writes exactly that value for the
+exp04 directory and is the probable cause. **The untagged ceiling manifests do
+not record what was trained - do not use them for hyper-parameter claims.**
+
+### Evidence - original runs against the controlled rerun (100k steps, FIX-01 on)
+
+Original = CartPole kwargs (buffer 10k, train_frequency 10, learning_starts 10k),
+n = 9. Rerun = FrozenLake kwargs, tag `flkw`, n = 10. Circuits = exp04, FrozenLake
+kwargs, n = 10. "Alive" = greedy_final > 0.
+
+| depth | ceiling, original | ceiling, rerun | circuit |
+|---|---|---|---|
+| L=1 | 0.000 / 0 of 9 alive | 0.004 / 0 of 10 | 0.000 / 0 of 10 |
+| L=5 | **0.610** / 6 of 9 | **0.103** / 0 of 10 | 0.125 / 0 of 10 |
+| L=10 | 0.947 / 8 of 9 | 0.949 / 10 of 10 | 0.081 / 1 of 10 |
+| L=15 | 0.951 / 9 of 9 | 0.950 / 10 of 10 | 0.011 / 0 of 10 |
+
+(`final_perf` IQM / seeds alive; `greedy_final` IQM of the L=10 and L=15 reruns
+is 1.000.)
+
+### Reading
+
+1. **The Config A headline survives matched hyper-parameters.** At L=10 and L=15
+   the classical additive Fourier ceiling reaches ~0.95 with every seed alive,
+   against 1/10 and 0/10 for the real circuit trained identically: P(ceiling >
+   circuit) = 1.00 on both metrics. At L=1 and L=5 the two are indistinguishable
+   (both dead). The class of functions the circuit could express contains a
+   solving policy; the circuit does not find it.
+2. **The hyper-parameters mattered at L=5 only.** There the CartPole settings took
+   the ceiling from 0/10 alive to 6/9 alive (0.103 -> 0.610). At L=10 and L=15
+   the two settings are equivalent (P(rerun > original) 0.57 / 0.48 on
+   `final_perf`).
+3. **A lead for a later sweep, not a result.** The original settings (buffer 10k,
+   train_frequency 10, learning_starts 10k) rescued the borderline depth of a
+   classical model. Limits: it was spotted after seeing the outcome (treat
+   any sweep as exploratory); it concerns the classical ceiling, not the circuit;
+   and it does not say which of the three settings matters.
+
+### Fix
+
+`notebooks/13_exp08_gaps_colab.ipynb` tier 0 now uses `FL_DQN_KWARGS` (exp04's
+own) and `tag="flkw"`, so its reuse guard cannot take the mislabelled manifests
+for hits. The controlled set was trained locally with
+`experiments/rerun_controlled_arms.py --group ceilingA` (40 cells, ~80 s each).
+**The original untagged ceiling runs are kept on disk** as the only record of
+how the CartPole settings behave on this model.
+
+### Scope
+
+Affects only the four Config A ceilings. The Config B ceiling
+(`frozen_binary_4q_fourier_ceiling`, exp05) was trained locally with FrozenLake's
+kwargs and is unaffected, as are the circuits and every CartPole experiment.
