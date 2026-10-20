@@ -91,6 +91,75 @@ effective sample per checkpoint) and is not read as learning.
   wave, only if wave 1 or the supervisor makes them worth the time.
 - **Output Reuse x entanglement on the real circuit** (phase 2).
 
-## 5. Results
+## 5. Results (wave 1, 288 cells, finished 2026-10-21)
 
-Filled in when the groups finish.
+All 288 cells ran (groups F and G at n = 10, group I at n = 3 per variant), no errors.
+Exploratory, as stated at the top: nothing here changes the core of the thesis.
+
+**Headline: Output Reuse rescues nothing on FrozenLake, on the unentangled circuit.**
+
+- **None of the 24 arms of F and G is alive.** `greedy_final` is 0.000 and 0 of 10 seeds
+  are alive in every one of the 240 cells, for every depth and every R in {1, 4, 16}
+  (Config A: L = 1, 5, 10, 15; Config B ent=False: L = 1, 2, 3, 5).
+- The only movement is in `final_perf` of Config A (largest IQM 0.102, at L = 5, R = 1),
+  and it goes the wrong way for OR: 0.102 / 0.026 / 0.048 for R = 1 / 4 / 16 at L = 5,
+  0.046 / 0.029 / 0.007 at L = 10. With `greedy_final` at zero this is the value-vs-
+  policy dissociation already seen in FrozenLake, not learning.
+
+### Pre-specified contrasts (section 3)
+
+| # | contrast | greedy_final a / b | P(a>b) greedy | final_perf a / b | P(a>b) final |
+|---|---|---|---|---|---|
+| 1 | Config A L5: R16 vs R1 | 0.000 / 0.000 | 0.50 | 0.048 / 0.102 | 0.40 |
+| 2 | Config A L10: R16 vs R1 | 0.000 / 0.000 | 0.50 | 0.007 / 0.046 | 0.22 |
+| 2 | Config A L15: R16 vs R1 | 0.000 / 0.000 | 0.50 | 0.014 / 0.010 | 0.58 |
+| 3 | Config B L5 (ent=False): R16 vs R1 | 0.000 / 0.000 | 0.50 | 0.000 / 0.000 | 0.45 |
+| 4 | Config B L1: R16 vs R1 | 0.000 / 0.000 | 0.50 | 0.000 / 0.000 | 0.45 |
+| 5 | dose-response R = 1, 4, 16 | no arm moves on `greedy_final` | — | no consistent direction | — |
+| 6 | Fourier ceiling (`flkw`) vs emulated circuit, L = 10 and 15, every R | 1.000 vs 0.000 | 1.00 | 0.949 / 0.950 vs <= 0.046 | 1.00 |
+
+P = 0.50 on `greedy_final` is two groups that are both at zero: it says no effect was
+found, not that the arms are equivalent in any finer sense.
+
+### Contrast 6 in words
+The gap between the classical additive Fourier ceiling (10 of 10 seeds alive at L = 10 and
+15) and the circuit is **not closed by Output Reuse at any R**. At L = 5 both are dead
+under the FrozenLake protocol, so there is no gap to close.
+
+### Validation: the emulator against the real circuit on FrozenLake
+Same protocol, seeds 1–10, five pairs (Config A L = 5, 10, 15; Config B L = 1, 5): the
+emulated arm and its real PennyLane counterpart are indistinguishable (P(emulator >
+real) between 0.45 and 0.56 on both metrics). Caveat: all of these arms are dead, so the
+check has little power on FrozenLake; the stronger validation is the CartPole one
+(FIX-12, P = 0.41 / 0.42 for an arm that is alive).
+
+### Group I: protocol sensitivity (seeds 101–103, n = 3 per variant)
+None of the 8 protocol variants brings either L = 5 arm to life: 0 of 3 seeds alive and
+`greedy_final` 0.000 in all 16 (arm, variant) cells. The best `final_perf` is 0.148
+(`su2_frozen_scalar_1q_L5`, train_frequency 1, learning_starts 10k, buffer 50k). With three
+seeds this cannot detect a modest effect, but there is no sign that the failure of the
+unentangled circuit at L = 5 is a matter of these three DQN settings.
+
+### Reading
+1. On CartPole, Output Reuse helped the unentangled circuit as well as the entangled one.
+   On FrozenLake it does not help the unentangled circuit at all. Whatever OR does
+   (an optimisation effect, section 0), it did not make an otherwise dead circuit learn here.
+2. The only FrozenLake arm that learns is the ENTANGLED circuit at L = 5 (9 of 10 seeds,
+   exp04). Because every unentangled baseline is dead and stays dead, this experiment
+   cannot show whether OR interacts with entanglement; that is the question phase 2 would
+   have to ask, on the entangled arm itself.
+3. The emulator does what it is for: it reproduces the real unentangled circuit and made
+   240 + 48 cells affordable (about 4.7 hours wall-clock on up to 13 single-thread processes).
+
+### What this does not show
+- Anything about entanglement (the emulator cannot represent it).
+- That OR is useless in general: only that it did not rescue these 24 unentangled
+  FrozenLake arms, at R in {1, 4, 16}, under exp04's protocol.
+- Anything about the control "classical MLP on the four bits", still missing (section 4).
+
+### Phase 2 (not launched; decision for the supervisor)
+The informative test is Output Reuse on the real entangled circuit: Config B L = 5 with
+OR (the only arm that is alive at baseline) and, if budget allows, entangled L = 2–3 with
+OR to see whether it lowers the depth needed. Cost is the real circuit's: about 25 h per
+seed at L = 5. A batched statevector simulator for the entangled circuit would make it
+cheap; it does not exist yet.
