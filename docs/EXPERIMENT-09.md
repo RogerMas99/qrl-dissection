@@ -254,10 +254,18 @@ the standardised difference d = (mean_sim - mean_real) / pooled sd on `final_per
 
 ### Acceptance rule, fixed before the battery runs
 The simulators are accepted as stand-ins for the real circuit **only if all three hold**:
-1. **No global bias.** The mean standardised difference d over all pairs with a non-degenerate
-   spread has a 95 % bootstrap CI that contains 0, and |mean d| <= 0.30.
-2. **No excess of disagreements.** At most 25 % of the (pair, metric) cells have P(sim > real)
-   outside [0.25, 0.75]. (With 10 against 10 seeds about 7 % are expected outside it by chance.)
+1. **No global bias.** The mean standardised difference d over all INFORMATIVE pairs has a 95 %
+   bootstrap CI that contains 0, and |mean d| <= 0.30.
+2. **No excess of disagreements.** At most 25 % of the (informative pair, metric) cells have
+   P(sim > real) outside [0.25, 0.75]. (With 10 against 10 seeds about 7 % are expected outside it
+   by chance.)
+
+*Informative pair* (defined before any battery cell finished): at least one of the two arms has an
+IQM of `final_perf` above 12 on CartPole or above 0.05 on FrozenLake. Otherwise both arms sit at the
+dead floor, where a standardised difference or a probability of improvement measures noise; such
+pairs are reported, and the only check applied to them is "both dead". Pairs that reuse the same
+simulator arm against a second real reference, and the real-vs-real noise floor, are reported but
+do not enter the global rule, so that no simulator data is counted twice.
 3. **The two simulators agree with each other.** For the `sv` ent=False / `su2` twins,
    P in [0.25, 0.75] on every metric.
 
