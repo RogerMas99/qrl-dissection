@@ -1,0 +1,165 @@
+# Experiment 09 — Output Reuse x depth on FrozenLake, on the SU(2) emulator
+
+> **STATUS: EXPLORATORY EXTENSION — NOT PART OF THE THESIS CORE.**
+> This experiment explores extra options that the core design (exp01–exp08,
+> and the controls around them) did not cover. It is run because it is cheap,
+> not because the thesis depends on it. Nothing here is a pre-registered test
+> of the core hypotheses; results are to be reported separately and labelled
+> exploratory, unless the supervisor decides to promote any of it into the
+> core. Created 2026-10-20.
+
+**Axes:** algorithm `dqn` x environment `frozenlake` x blocks 1 (Output Reuse) and 2 (DR / embedding)
+**Script:** `experiments/exp09_dqn_emulator_sweep.py`
+**Arms:** `su2_frozen_{scalar_1q,binary_4q}_L{L}[_OR{R}]` (24, `core/configs.py`, section "[exp09]")
+**Results:** `results/exp09_dqn_emulator_sweep/` (Drive)
+
+---
+
+## 0. Why this exists
+
+- On CartPole, Output Reuse is the strongest single lever in our data
+  (`hybrid_OR{4,..,32}` against `hybrid_fig4`: P between 0.96 and 1.00), and the only
+  setting in which entanglement showed an advantage over its unentangled twin
+  (provisional: the unentangled OR arms are still at n = 5–9).
+- It has never been tried on FrozenLake. That is a matter of timing, not of a
+  decision against it: exp04 was designed while exp02 (OR) was still running and
+  exp03 (DR) was the block that had transferred (`docs/EXPERIMENT-04.md`, section 1).
+- `OutputReuse` is `x.repeat(1, R)` (`simplyqrl/agents.py`): R identical copies
+  of the measured expectation values. It does not enlarge the function class of
+  the head; it re-parametrises it. Whatever it does on FrozenLake is therefore
+  an optimisation effect, a hypothesis this experiment can inform but not settle.
+
+## 1. What the emulator can and cannot say
+
+`SU2SkolikEmulator` reproduces the UNENTANGLED skolik circuit exactly (NEW-05;
+initialisation matched in FIX-12) at 3–8 minutes per 100k-step FrozenLake cell,
+against 7–25 hours for the real circuit. It cannot represent an entangled
+circuit. **This sweep says nothing about entanglement.** The crossing Output
+Reuse x entanglement needs the real circuit (about 25 h per seed on Config B,
+L = 5) or a purpose-built batched statevector simulator: phase 2, gated on what
+this phase shows.
+
+## 2. Design (wave 1)
+
+| group | what | arms | seeds | cells | est. compute |
+|---|---|---|---|---|---|
+| **F** | Config A (1 qubit, scalar embedding): L in {1, 5, 10, 15} x R in {1, 4, 16} | 12 | 1–10 | 120 | ~14 h |
+| **G** | Config B (4 qubits, binary embedding, ent=False): L in {1, 2, 3, 5} x R in {1, 4, 16} | 12 | 1–10 | 120 | ~8 h |
+| **I** | protocol sensitivity: train_frequency {1, 10} x learning_starts {1k, 10k} x buffer {50k, 10k} on `su2_frozen_scalar_1q_L5` and `su2_frozen_binary_4q_L5` | 2 x 8 variants | 101–103 | 48 | ~5 h |
+
+- R = 1 means no Output Reuse. At L = 1 the entangled and unentangled circuits are
+  the same circuit (FIX-07), so Config B L = 1 is fully covered.
+- **Protocol.** F and G use exp04's own FrozenLake protocol (batch 128, buffer
+  50 000, train_frequency 1, learning_starts 1 000) so that they stay comparable
+  with every FrozenLake result already on disk. I is a **sensitivity analysis**
+  run on separate seeds (101–103); it is not used to choose the protocol of F
+  and G. If it shows strong sensitivity (as the L = 5 Fourier ceiling did, FIX-13),
+  that is reported as a caveat and, if worthwhile, F/G are repeated under the
+  better protocol as a clearly labelled secondary set.
+- 100 000 steps, FIX-01 on, greedy evaluation every 10 000 steps (20 episodes).
+- Cells are run by several workers of one group with `--claim` (cooperative
+  locks, TTL 2 h).
+
+## 3. Contrasts fixed before any cell runs
+
+Primary outcome `greedy_final`; secondary `final_perf`; probability of
+improvement P(a > b) with bootstrap CIs on the IQM, as in the rest of the repo.
+Six contrasts are treated as the confirmatory set of this exploration; every
+other comparison is reported as exploratory.
+
+1. Config A, L = 5: R = 16 against R = 1.
+2. Config A, L = 10 and L = 15: R = 16 against R = 1.
+3. Config B (ent=False), L = 5: R = 16 against R = 1.
+4. Config B (ent=False), L = 1: R = 16 against R = 1.
+5. Dose–response: R in {1, 4, 16} at each (config, L) — monotone or not.
+6. Emulated Config A circuit against the Fourier ceiling (`__flkw`, FIX-13) at
+   matched L, to see whether OR closes any of the ceiling gap.
+
+Reading rules: an effect on a configuration that is dead at R = 1 and alive at
+R > 1 is the interesting outcome; no effect anywhere is a result and is reported
+as such. A gain on `final_perf` with no gain on `greedy_final` is the value-vs-
+policy dissociation (greedy evaluation on deterministic FrozenLake has one
+effective sample per checkpoint) and is not read as learning.
+
+## 4. Not in wave 1
+
+- **Control: a classical MLP on the four bits with a matched budget.** Missing
+  from the FrozenLake design since exp04; it needs a new observation adapter
+  (state as bits) and is not part of this wave.
+- **CartPole mechanism of OR** (head size, learning rate, a classical control that
+  repeats its inputs), new DR x OR points and per-depth Fourier ceilings: a second
+  wave, only if wave 1 or the supervisor makes them worth the time.
+- **Output Reuse x entanglement on the real circuit** (phase 2).
+
+## 5. Results (wave 1, 288 cells, finished 2026-10-21)
+
+All 288 cells ran (groups F and G at n = 10, group I at n = 3 per variant), no errors.
+Exploratory, as stated at the top: nothing here changes the core of the thesis.
+
+**Headline: Output Reuse rescues nothing on FrozenLake, on the unentangled circuit.**
+
+- **None of the 24 arms of F and G is alive.** `greedy_final` is 0.000 and 0 of 10 seeds
+  are alive in every one of the 240 cells, for every depth and every R in {1, 4, 16}
+  (Config A: L = 1, 5, 10, 15; Config B ent=False: L = 1, 2, 3, 5).
+- The only movement is in `final_perf` of Config A (largest IQM 0.102, at L = 5, R = 1),
+  and it goes the wrong way for OR: 0.102 / 0.026 / 0.048 for R = 1 / 4 / 16 at L = 5,
+  0.046 / 0.029 / 0.007 at L = 10. With `greedy_final` at zero this is the value-vs-
+  policy dissociation already seen in FrozenLake, not learning.
+
+### Pre-specified contrasts (section 3)
+
+| # | contrast | greedy_final a / b | P(a>b) greedy | final_perf a / b | P(a>b) final |
+|---|---|---|---|---|---|
+| 1 | Config A L5: R16 vs R1 | 0.000 / 0.000 | 0.50 | 0.048 / 0.102 | 0.40 |
+| 2 | Config A L10: R16 vs R1 | 0.000 / 0.000 | 0.50 | 0.007 / 0.046 | 0.22 |
+| 2 | Config A L15: R16 vs R1 | 0.000 / 0.000 | 0.50 | 0.014 / 0.010 | 0.58 |
+| 3 | Config B L5 (ent=False): R16 vs R1 | 0.000 / 0.000 | 0.50 | 0.000 / 0.000 | 0.45 |
+| 4 | Config B L1: R16 vs R1 | 0.000 / 0.000 | 0.50 | 0.000 / 0.000 | 0.45 |
+| 5 | dose-response R = 1, 4, 16 | no arm moves on `greedy_final` | — | no consistent direction | — |
+| 6 | Fourier ceiling (`flkw`) vs emulated circuit, L = 10 and 15, every R | 1.000 vs 0.000 | 1.00 | 0.949 / 0.950 vs <= 0.046 | 1.00 |
+
+P = 0.50 on `greedy_final` is two groups that are both at zero: it says no effect was
+found, not that the arms are equivalent in any finer sense.
+
+### Contrast 6 in words
+The gap between the classical additive Fourier ceiling (10 of 10 seeds alive at L = 10 and
+15) and the circuit is **not closed by Output Reuse at any R**. At L = 5 both are dead
+under the FrozenLake protocol, so there is no gap to close.
+
+### Validation: the emulator against the real circuit on FrozenLake
+Same protocol, seeds 1–10, five pairs (Config A L = 5, 10, 15; Config B L = 1, 5): the
+emulated arm and its real PennyLane counterpart are indistinguishable (P(emulator >
+real) between 0.45 and 0.56 on both metrics). Caveat: all of these arms are dead, so the
+check has little power on FrozenLake; the stronger validation is the CartPole one
+(FIX-12, P = 0.41 / 0.42 for an arm that is alive).
+
+### Group I: protocol sensitivity (seeds 101–103, n = 3 per variant)
+None of the 8 protocol variants brings either L = 5 arm to life: 0 of 3 seeds alive and
+`greedy_final` 0.000 in all 16 (arm, variant) cells. The best `final_perf` is 0.148
+(`su2_frozen_scalar_1q_L5`, train_frequency 1, learning_starts 10k, buffer 50k). With three
+seeds this cannot detect a modest effect, but there is no sign that the failure of the
+unentangled circuit at L = 5 is a matter of these three DQN settings.
+
+### Reading
+1. On CartPole, Output Reuse helped the unentangled circuit as well as the entangled one.
+   On FrozenLake it does not help the unentangled circuit at all. Whatever OR does
+   (an optimisation effect, section 0), it did not make an otherwise dead circuit learn here.
+2. The only FrozenLake arm that learns is the ENTANGLED circuit at L = 5 (9 of 10 seeds,
+   exp04). Because every unentangled baseline is dead and stays dead, this experiment
+   cannot show whether OR interacts with entanglement; that is the question phase 2 would
+   have to ask, on the entangled arm itself.
+3. The emulator does what it is for: it reproduces the real unentangled circuit and made
+   240 + 48 cells affordable (about 4.7 hours wall-clock on up to 13 single-thread processes).
+
+### What this does not show
+- Anything about entanglement (the emulator cannot represent it).
+- That OR is useless in general: only that it did not rescue these 24 unentangled
+  FrozenLake arms, at R in {1, 4, 16}, under exp04's protocol.
+- Anything about the control "classical MLP on the four bits", still missing (section 4).
+
+### Phase 2 (not launched; decision for the supervisor)
+The informative test is Output Reuse on the real entangled circuit: Config B L = 5 with
+OR (the only arm that is alive at baseline) and, if budget allows, entangled L = 2–3 with
+OR to see whether it lowers the depth needed. Cost is the real circuit's: about 25 h per
+seed at L = 5. A batched statevector simulator for the entangled circuit would make it
+cheap; it does not exist yet.

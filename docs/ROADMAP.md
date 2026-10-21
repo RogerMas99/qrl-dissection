@@ -271,3 +271,14 @@ coverage at a glance.
   belonged in `core/`.
 - Run artefacts -> Drive or `results/`, never git. Only summary tables in
   `docs/RESULTS-LOG.md` are committed.
+
+## Exploratory extensions (outside the thesis core)
+
+Work that explores extra options and is NOT part of the core design. It is run
+because it is cheap and reported separately, labelled exploratory, unless the
+supervisor decides to promote it.
+
+| id | what | status |
+|---|---|---|
+| [exp09](EXPERIMENT-09.md) | Output Reuse x depth on FrozenLake, on the SU(2) emulator (unentangled only) | wave 1 finished 2026-10-21: Output Reuse rescues none of the 24 unentangled arms (negative result, see section 5) |
+
