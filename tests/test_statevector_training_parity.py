@@ -1,0 +1,72 @@
+"""[NEW-09] Training-trajectory parity of the statevector agent and the real SimplyQRL agent.
+
+tests/test_statevector_equivalence.py compares one call at a time. This compares a whole
+optimisation: the real ENTANGLED `HybridAgent` (PennyLane circuit + Output Reuse + head) and
+the `sv` agent are given identical initial weights and identical data, trained with the same
+Adam for several steps, and their loss curves and final outputs must stay together. Because
+the data and the initial weights are identical, there is no sampling noise: any divergence
+beyond float rounding would be a bug in the simulator.
+
+What this does NOT check is DQN's own stochasticity (epsilon-greedy draws, replay sampling):
+that is statistical and is checked by running the same arms on both (exp09 groups V and P,
+criteria in docs/EXPERIMENT-09.md section 6).
+"""
+from __future__ import annotations
+
+import pytest
+
+torch = pytest.importorskip("torch")
+pytest.importorskip("pennylane")
+
+from qrl_dissection.core.capacity import build_agent_for  # noqa: E402
+from qrl_dissection.core.configs import build_arm_config  # noqa: E402
+from qrl_dissection.core.obs_adapters import FROZEN_SCALAR_ID  # noqa: E402
+
+CASES = [
+    ("sv_frozen_binary_4q_L3_OR4", 40),      # entangled, 3 layers, Output Reuse x4
+    ("sv_frozen_binary_4q_L5", 25),          # the arm that is alive in exp04
+    ("sv_frozen_binary_4q_L2", 40),
+]
+
+
+def _copy_weights(real, sv):
+    for m_real, m_sv in zip(real.network, sv.network):
+        if hasattr(m_sv, "load_weights_from_torchlayer"):
+            m_sv.load_weights_from_torchlayer(m_real)
+        elif any(True for _ in m_sv.parameters()):
+            m_sv.load_state_dict(m_real.state_dict())
+
+
+def _train(net, x, y, steps):
+    opt = torch.optim.Adam(net.parameters(), lr=1e-2)
+    losses = []
+    for _ in range(steps):
+        opt.zero_grad()
+        loss = torch.nn.functional.mse_loss(net(x), y)
+        loss.backward()
+        opt.step()
+        losses.append(float(loss.detach()))
+    return losses
+
+
+@pytest.mark.parametrize("arm,steps", CASES)
+def test_loss_curve_of_the_sv_agent_follows_the_real_entangled_agent(arm, steps):
+    agent_type, cfg = build_arm_config(arm, env_id=FROZEN_SCALAR_ID)
+    assert agent_type == "sv" and cfg["ent"] is True
+    torch.manual_seed(0)
+    real = build_agent_for("hybrid", cfg, env_id=FROZEN_SCALAR_ID, is_qnet=True)
+    sv = build_agent_for("sv", cfg, env_id=FROZEN_SCALAR_ID, is_qnet=True)
+    _copy_weights(real, sv)
+
+    torch.manual_seed(1)
+    x = torch.arange(16).float().unsqueeze(1)
+    y = torch.rand(16, 4)
+    with torch.no_grad():
+        assert float((real(x) - sv(x)).abs().max()) < 1e-5      # same function at step 0
+
+    l_real, l_sv = _train(real, x, y, steps), _train(sv, x, y, steps)
+    gap = max(abs(a - b) for a, b in zip(l_real, l_sv))
+    assert gap < 1e-5, f"loss curves diverged: max gap {gap:.2e}"
+    assert l_real[-1] < l_real[0], "the fit should actually be learning something"
+    with torch.no_grad():
+        assert float((real(x) - sv(x)).abs().max()) < 1e-4       # same function after training

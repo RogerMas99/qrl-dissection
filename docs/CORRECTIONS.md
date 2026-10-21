@@ -720,6 +720,11 @@ check is reported, results from the simulator are labelled as such wherever they
 
 Skolik template only. The Salinas (`dr`) and Hsiao templates are not covered.
 
+**Policy:** results from this simulator (agent type `sv`) are exploratory and cannot go
+into the final work without the author's explicit approval
+([SIMULATED-RESULTS-POLICY.md](SIMULATED-RESULTS-POLICY.md)); the same holds for the
+SU(2) emulator (`su2`).
+
 ---
 
 ## FIX-05

@@ -276,7 +276,9 @@ coverage at a glance.
 
 Work that explores extra options and is NOT part of the core design. It is run
 because it is cheap and reported separately, labelled exploratory, unless the
-supervisor decides to promote it.
+supervisor decides to promote it. Results from simulators (`su2`, `sv`) are further
+bound by [SIMULATED-RESULTS-POLICY.md](SIMULATED-RESULTS-POLICY.md): not in the final
+work without the author's explicit approval.
 
 | id | what | status |
 |---|---|---|

@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from .provenance import is_simulated_manifest, warn_if_simulated
+
 
 def load_episodes(csv_path: str | pathlib.Path):
     """Return (returns, global_steps) from an upstream episode CSV."""
@@ -57,6 +59,7 @@ def summarise_run(manifest: Dict[str, Any], tail_fraction: float = 0.2) -> Dict[
         "n_episodes": len(rewards),
         "frac_poison": out["probe"]["frac_poison"],
         "wall_s": out["wall_seconds"],
+        "simulated": is_simulated_manifest(manifest),
     }
     if out.get("eval_csv") and pathlib.Path(out["eval_csv"]).exists():
         _, scores = load_eval(out["eval_csv"])
@@ -82,7 +85,9 @@ def collect(outdir: str | pathlib.Path) -> List[Dict[str, Any]]:
 
 def to_dataframe(outdir: str | pathlib.Path):
     import pandas as pd
-    return pd.DataFrame(collect(outdir))
+    df = pd.DataFrame(collect(outdir))
+    warn_if_simulated(df)      # policy: docs/SIMULATED-RESULTS-POLICY.md
+    return df
 
 
 def arm_comparison(outdir: str | pathlib.Path, metric: str = "best_ma50"):

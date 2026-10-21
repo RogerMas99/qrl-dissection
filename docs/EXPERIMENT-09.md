@@ -7,6 +7,10 @@
 > of the core hypotheses; results are to be reported separately and labelled
 > exploratory, unless the supervisor decides to promote any of it into the
 > core. Created 2026-10-20.
+>
+> **Everything in this experiment comes from simulators (`su2`, `sv`). Under
+> [SIMULATED-RESULTS-POLICY.md](SIMULATED-RESULTS-POLICY.md) none of it can go into
+> the final work, in any form, without the author's explicit approval.**
 
 **Axes:** algorithm `dqn` x environment `frozenlake` x blocks 1 (Output Reuse) and 2 (DR / embedding)
 **Script:** `experiments/exp09_dqn_emulator_sweep.py`
