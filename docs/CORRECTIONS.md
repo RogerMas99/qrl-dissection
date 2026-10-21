@@ -675,6 +675,53 @@ published in `docs/RESULTS-LOG.md`.
 
 ---
 
+## NEW-09 - batched statevector simulator of the `skolik` circuit, entangled or not
+
+**Infrastructure, not an experimental arm.** `core/statevector.py` computes
+`build_skolik_qlayer(..., ent=...)` as one batched tensor program. It is the entangled
+counterpart of NEW-05's SU(2) emulator (which cannot represent entanglement), and it exists
+because the per-sample PennyLane call, not the physics, is what makes entangled FrozenLake
+and CartPole cells cost 7-25 hours.
+
+### Why the real layer is slow, measured
+
+`lightning.qubit` is itself a statevector simulator. At 4-8 qubits the state has 16-256
+amplitudes, so the simulation is trivial; what costs time is that `qml.qnn.TorchLayer`
+evaluates the QNode sample by sample, rebuilding and dispatching the circuit through Python
+for each one, and differentiates with the adjoint method one sample at a time.
+Forward + backward, one thread (milliseconds):
+
+| circuit (entangled) | batch | PennyLane | statevector | speed-up |
+|---|---|---|---|---|
+| 4 qubits, L = 5 (FrozenLake Config B) | 1 | 6.3 | 3.2 | 1.9x |
+| 4 qubits, L = 5 | 128 | 351.5 | 4.5 | 79x |
+| 4 qubits, L = 1 | 128 | 115.6 | 1.1 | 103x |
+| 8 qubits, L = 5 (CartPole) | 128 | 743.0 | 21.1 | 35x |
+
+At batch 1 the two are within a factor of two; the cost of PennyLane grows linearly with the
+batch, which is the signature of the per-sample loop.
+
+### Evidence of equivalence
+
+`tests/test_statevector_equivalence.py`: forward output and gradients with respect to the
+weights agree with the real `TorchLayer` to 1e-6, entangled and not, on CartPole 8q L5,
+FrozenLake Config B at L = 2, 3, 5 and a 2-qubit case (where the circular CZ ring cancels).
+Negative controls: the entangled layer differs from the unentangled real circuit by > 0.05
+at L = 5, and equals it at L = 1 (FIX-07). Initial weights ~ U[0, 2*pi) (FIX-12).
+
+### Claim discipline
+
+Per-call agreement, not bitwise-identical training curves; the training-level claim is
+equivalence in distribution over seeds and is checked by running the same arms as the real
+ones (exp09 groups V and P, criterion fixed in `docs/EXPERIMENT-09.md` section 6). Until that
+check is reported, results from the simulator are labelled as such wherever they appear.
+
+### Scope
+
+Skolik template only. The Salinas (`dr`) and Hsiao templates are not covered.
+
+---
+
 ## FIX-05
 
 **A `Discrete` observation space cannot be run by upstream's DQN at all.**

@@ -158,7 +158,7 @@ def _patch_output_scale() -> None:
 # see those modules' docstrings for what each does and does not claim.
 # See:       docs/CORRECTIONS.md#new-05, docs/CORRECTIONS.md#new-06
 # ---------------------------------------------------------------------------
-_NEW_AGENT_TYPES = {"su2", "fourier_additive", "linear_on_bits"}
+_NEW_AGENT_TYPES = {"su2", "sv", "fourier_additive", "linear_on_bits"}
 
 
 def _patch_new_agent_types() -> None:
@@ -182,6 +182,9 @@ def _patch_new_agent_types() -> None:
             if key == "su2":
                 from .su2_emulator import SU2HybridAgent
                 return SU2HybridAgent(obs_dim, n_actions, cfg, is_qnet=True)
+            if key == "sv":
+                from .statevector import SVHybridAgent
+                return SVHybridAgent(obs_dim, n_actions, cfg, is_qnet=True)
             if key == "fourier_additive":
                 from .fourier_ceiling import FourierAdditiveCeiling
                 return FourierAdditiveCeiling(

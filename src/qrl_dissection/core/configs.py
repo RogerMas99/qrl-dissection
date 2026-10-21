@@ -513,6 +513,68 @@ for _R in EXP09_FROZEN_REUSE:
             _cfg["reuse_repetitions"] = _R
         ARMS.setdefault(su2_frozen_arm_name("binary_4q", _L, _R), ("su2", _cfg))
 
+
+# [exp09, wave 2] EXPLORATORY EXTENSION - not part of the thesis core (docs/EXPERIMENT-09.md).
+# EXP09_WAVE2: arms for the statevector simulator (core/statevector.py, NEW-09), which
+# represents ENTANGLED circuits, and for extra emulator axes. Nothing here replaces an
+# arm of exp01-exp08: where a real-circuit arm exists, the sv/su2 arm is a replica run
+# under its own name.
+EXP09_CARTPOLE_REUSE = [1, 4, 8, 16, 32]
+
+
+def sv_frozen_arm_name(n_layers_q: int, reuse: int) -> str:
+    base = f"sv_frozen_binary_4q_L{int(n_layers_q)}"
+    return base if int(reuse) == 1 else f"{base}_OR{int(reuse)}"
+
+
+def cartpole_replica_name(kind: str, reuse: int, suffix: str = "") -> str:
+    """kind: 'sv' (entangled, statevector) or 'su2' (unentangled emulator)."""
+    base = f"{kind}_cartpole_L5"
+    base = base if int(reuse) == 1 else f"{base}_OR{int(reuse)}"
+    return base + suffix
+
+
+# Entangled FrozenLake Config B on the statevector simulator (ent=True).
+for _R in EXP09_FROZEN_REUSE:
+    for _L in EXP09_CONFIG_B_DEPTHS:
+        _cfg = frozen_binary_config(_L, ent=True)
+        if _R > 1:
+            _cfg["reuse_repetitions"] = _R
+        ARMS.setdefault(sv_frozen_arm_name(_L, _R), ("sv", _cfg))
+
+# CartPole replicas of HYBRID_FIG4 (+ Output Reuse): entangled on the statevector
+# simulator, unentangled on the SU(2) emulator.
+for _R in EXP09_CARTPOLE_REUSE:
+    for _kind, _ent in (("sv", True), ("su2", False)):
+        _cfg = dict(HYBRID_FIG4, ent=_ent)
+        if _R > 1:
+            _cfg["reuse_repetitions"] = _R
+        ARMS.setdefault(cartpole_replica_name(_kind, _R), (_kind, _cfg))
+
+# FIX-02 question: does the output scale (never requested by any arm so far) matter on
+# CartPole, where Q must reach ~100 and PauliZ expectations live in [-1, 1]?
+for _R in (1, 16):
+    _cfg = dict(HYBRID_FIG4, ent=False, use_output_scaling=True)
+    if _R > 1:
+        _cfg["reuse_repetitions"] = _R
+    ARMS.setdefault(cartpole_replica_name("su2", _R, "_outscale"), ("su2", _cfg))
+
+# FrozenLake axes never varied, one at a time from the baseline, on the dead arms.
+EXP09_H_BASES = {
+    "su2_frozen_scalar_1q_L5": frozen_scalar_config(5),
+    "su2_frozen_scalar_1q_L10": frozen_scalar_config(10),
+    "su2_frozen_binary_4q_L5": frozen_binary_config(5, ent=False),
+}
+EXP09_H_VARIANTS = {
+    "head16": {"net_arch": [16], "activation": nn.ReLU},     # a real hidden layer in the head
+    "init0.1": {"q_init_std": 0.1},                          # small N(0, 0.1) quantum weights
+    "init0.5": {"q_init_std": 0.5},
+    "tis": {"trainable_input_scale": True},                  # trainable per-layer input scale
+}
+for _base, _cfg0 in EXP09_H_BASES.items():
+    for _vname, _over in EXP09_H_VARIANTS.items():
+        ARMS.setdefault(f"{_base}__{_vname}", ("su2", dict(_cfg0, **_over)))
+
 ARMS["cartpole_fourier_ceiling_L5"] = (
     "fourier_additive",
     {"n_qubits": HYBRID_FIG4["n_qubits"], "n_layers_q": HYBRID_FIG4["n_layers_q"],

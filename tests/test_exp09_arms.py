@@ -81,3 +81,39 @@ def test_run_names_are_unique():
     for g in ("F", "G", "I"):
         names = [s.run_name for s in mod.build_specs(g, 100_000)]
         assert len(names) == len(set(names))
+
+
+# --------------------------- wave 2 (statevector simulator and extra axes) -----------
+def test_wave2_group_sizes_and_environments():
+    mod = _script()
+    assert len(mod.build_specs("P", 100_000)) == 12 * 10
+    assert len(mod.build_specs("V", 100_000)) == 5 * 10
+    assert len(mod.build_specs("K", 100_000)) == (4 + 2 + 2 * 2) * 10
+    assert len(mod.build_specs("H", 100_000)) == 3 * (4 + 2) * 5
+    assert mod.group_env("V") == mod.group_env("K") == "CartPole-v1"
+    assert mod.group_env("P") == mod.group_env("H") == FROZEN_SCALAR_ID
+    for g in mod.GROUPS:
+        names = [s.run_name for s in mod.build_specs(g, 100_000)]
+        assert len(names) == len(set(names)), g
+
+
+def test_wave2_arms_build_with_the_expected_agent_type_and_entanglement():
+    for name, kind, ent in (("sv_frozen_binary_4q_L5", "sv", True),
+                            ("sv_cartpole_L5_OR16", "sv", True),
+                            ("su2_cartpole_L5_OR8", "su2", False)):
+        agent_type, cfg = build_arm_config(
+            name, env_id="CartPole-v1" if "cartpole" in name else FROZEN_SCALAR_ID)
+        assert agent_type == kind and bool(cfg["ent"]) is ent
+    # the replicas have the same parameter count as the real arms they stand in for
+    ref = {"sv_cartpole_L5_OR16": 606, "su2_cartpole_L5_OR8": 350, "sv_cartpole_L5": 126}
+    for name, n_params in ref.items():
+        at, cfg = build_arm_config(name, env_id="CartPole-v1")
+        agent = build_agent_for(at, cfg, env_id="CartPole-v1", is_qnet=True)
+        assert count_trainable(agent) == n_params, name
+
+
+def test_exploratory_variants_change_only_what_they_say():
+    at, base = build_arm_config("su2_frozen_scalar_1q_L5", env_id=FROZEN_SCALAR_ID)
+    for suffix, key in (("head16", "net_arch"), ("init0.1", "q_init_std"), ("tis", "trainable_input_scale")):
+        _, cfg = build_arm_config(f"su2_frozen_scalar_1q_L5__{suffix}", env_id=FROZEN_SCALAR_ID)
+        assert key in cfg and cfg["n_layers_q"] == base["n_layers_q"] and cfg["n_qubits"] == base["n_qubits"]

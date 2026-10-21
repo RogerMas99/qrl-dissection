@@ -163,3 +163,48 @@ OR (the only arm that is alive at baseline) and, if budget allows, entangled L =
 OR to see whether it lowers the depth needed. Cost is the real circuit's: about 25 h per
 seed at L = 5. A batched statevector simulator for the entangled circuit would make it
 cheap; it does not exist yet.
+
+---
+
+## 6. Wave 2 (designed 2026-10-21, before any wave-2 cell ran)
+
+Same status as the rest of this document: **exploratory extension, outside the thesis
+core, and nothing here replaces a run planned for the core** (the Colab top-ups of exp07
+and exp08 stay exactly as planned). Wave 2 uses the batched statevector simulator
+(`core/statevector.py`, NEW-09), which represents ENTANGLED circuits, and the SU(2)
+emulator for extra axes.
+
+| group | what | cells | est. compute |
+|---|---|---|---|
+| **P** | Config B ENTANGLED (sv): L in {1, 2, 3, 5} x R in {1, 4, 16}, seeds 1-10. Phase 2: Output Reuse x entanglement on FrozenLake | 120 | ~20 h |
+| **V** | CartPole fidelity: `HYBRID_FIG4` (entangled, sv) at R in {1, 4, 8, 16, 32}, seeds 1-10 | 50 | ~10 h |
+| **K** | CartPole extras (su2): OR without entanglement R in {4, 8, 16, 32}; output scale (FIX-02) at R = 1, 16; learning rate {1e-3, 4e-3} at R = 1, 16 | 100 | ~3 h |
+| **H** | FrozenLake axes never varied, one at a time on the dead arms (Config A L5, L10; Config B L5 unentangled): head16, init0.1, init0.5, trainable input scale, lr {1e-3, 4e-3}; seeds 1-5 | 90 | ~9 h |
+| **D** | expressivity and gradient diagnostics without RL (`experiments/exp09b_expressivity_diagnostics.py`) | - | <1 h |
+
+### Fixed before any wave-2 cell runs
+
+1. **Fidelity of the simulator (V and P at L = 5, R = 1).** `sv_cartpole_L5{,_OR*}` against
+   the real `hybrid_fig4` / `hybrid_OR*` of exp01 / exp02, and `sv_frozen_binary_4q_L5`
+   against the real `frozen_binary_4q_L5` of exp04 (9 of 10 seeds alive). The simulator is
+   accepted as a stand-in only if P(sv > real) lies in [0.25, 0.75] on `final_perf` and
+   `greedy_final` for each pair, and on FrozenLake at least 7 of 10 seeds are alive. If it
+   fails, P and V are reported as a failed validation and nothing else is read from them.
+2. **P, the question.** Output Reuse on the entangled circuit: R = 16 against R = 1 at
+   L = 5, 3 and 2 (does OR help or hurt the arm that is alive, and does it lower the
+   depth needed?); dose-response R = 1, 4, 16; and L = 1 as control (entangled == unentangled).
+3. **V and K, the CartPole replication of "entanglement only shows with OR".**
+   Entangled (sv) against unentangled (su2) at each R in {1, 4, 8, 16, 32}, n = 10 each,
+   same protocol - the contrast that is still at n = 5-9 in the real unentangled arms.
+4. **K, the two single-factor checks.** Output scale on against off at R = 1 and 16;
+   lr 1e-3 and 4e-3 against 2.5e-4 at R = 1 and 16.
+5. **H.** Each variant against the group-F baseline of the same arm on the same seeds
+   (paired). The outcome of interest is whether ANY dead arm comes alive.
+
+Reading rules are those of section 3. Diagnostics (D) are descriptive: a circuit that fits
+the optimal action values Q* but fails under DQN points to optimisation, not expressivity.
+
+### Not in wave 2
+The classical MLP on the four bits (needs an observation adapter), extending the emulators
+to the Salinas and Hsiao templates, and any substitution of Colab runs planned for the core.
+

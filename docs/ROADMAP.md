@@ -280,5 +280,5 @@ supervisor decides to promote it.
 
 | id | what | status |
 |---|---|---|
-| [exp09](EXPERIMENT-09.md) | Output Reuse x depth on FrozenLake, on the SU(2) emulator (unentangled only) | wave 1 finished 2026-10-21: Output Reuse rescues none of the 24 unentangled arms (negative result, see section 5) |
+| [exp09](EXPERIMENT-09.md) | Output Reuse x depth on FrozenLake, on the SU(2) emulator (unentangled only) | wave 1 finished 2026-10-21: Output Reuse rescues none of the 24 unentangled arms (negative result, see section 5); wave 2 (statevector simulator, entangled) launched 2026-10-21 |
 
