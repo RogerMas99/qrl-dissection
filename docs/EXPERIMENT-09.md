@@ -274,3 +274,27 @@ the simulators are not accepted and nothing read from them is interpreted. A pas
 accepted as exploratory tools, still under the policy above: it does not make their results
 usable in the final work.
 
+### Result of the battery (2026-10-21)
+
+Full table: [EXPERIMENT-09-BATTERY.md](EXPERIMENT-09-BATTERY.md). 21 informative pairs, 63
+(pair, metric) cells, 9 twin cells.
+
+| criterion | outcome | verdict |
+|---|---|---|
+| 1. no global bias | mean d = +0.119, 95 % CI (+0.010, +0.250) | **FAIL** (CI excludes 0 by 0.010) |
+| 2. at most 25 % of cells outside P in [0.25, 0.75] | 3 of 63 = 5 % | PASS |
+| 3. the two simulators agree | 0 of 9 twin cells outside the window | PASS |
+
+**Not accepted under the rule as written.** The simulators are, however, close: the mean
+standardised difference is +0.12 (the rule's bound on its size is 0.30), 95 % of the
+cells are inside the window against ~93 % expected by chance, the real-vs-real noise floor (two real
+runs of the same configuration) is d = -0.11 with P = 0.49 / 0.34 / 0.48, and the SU(2) and
+statevector routes agree with each other. Where the disagreement concentrates: entangled CartPole
+with Output Reuse at R = 16 and 32 (simulator higher, d about +0.5 each), `sv_paper_skolik_8q_L2`
+(+1.05, real n = 4), and FrozenLake L = 5 (simulator lower: d = -0.10 on 10 seeds, -0.45 on all
+20). The direction differs between environments, which a single systematic bug would not do.
+
+The rule was not relaxed after seeing this. Whether to accept the simulators for a narrower use
+(for example "effects larger than half a standard deviation") is the author's decision, to be
+recorded in [SIMULATED-RESULTS-POLICY.md](SIMULATED-RESULTS-POLICY.md) if taken.
+
