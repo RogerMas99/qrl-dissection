@@ -70,3 +70,23 @@ def test_loss_curve_of_the_sv_agent_follows_the_real_entangled_agent(arm, steps)
     assert l_real[-1] < l_real[0], "the fit should actually be learning something"
     with torch.no_grad():
         assert float((real(x) - sv(x)).abs().max()) < 1e-4       # same function after training
+
+
+def test_the_two_simulators_agree_with_each_other_when_unentangled():
+    """sv with ent=False and the SU(2) emulator are two routes to the same circuit."""
+    _, cfg = build_arm_config("sv_frozen_binary_4q_noent_L5", env_id=FROZEN_SCALAR_ID)
+    assert cfg["ent"] is False
+    torch.manual_seed(0)
+    sv = build_agent_for("sv", cfg, env_id=FROZEN_SCALAR_ID, is_qnet=True)
+    su2 = build_agent_for("su2", cfg, env_id=FROZEN_SCALAR_ID, is_qnet=True)
+    su2.network[0].weights.data.copy_(sv.network[0].weights.data)
+    for m_sv, m_su2 in zip(sv.network, su2.network):
+        if not hasattr(m_sv, "weights") and any(True for _ in m_sv.parameters()):
+            m_su2.load_state_dict(m_sv.state_dict())
+    torch.manual_seed(1)
+    x = torch.arange(16).float().unsqueeze(1)
+    y = torch.rand(16, 4)
+    with torch.no_grad():
+        assert float((sv(x) - su2(x)).abs().max()) < 1e-6
+    l_sv, l_su2 = _train(sv, x, y, 60), _train(su2, x, y, 60)
+    assert max(abs(a - b) for a, b in zip(l_sv, l_su2)) < 1e-5

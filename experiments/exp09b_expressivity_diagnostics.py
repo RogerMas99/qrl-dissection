@@ -131,14 +131,15 @@ def part1(out: pathlib.Path, quick: bool):
             for sd in seeds:
                 rows.append(fit_arm(arm, sd, steps, lr, q_star, terminal, P))
             print(f"  fitted {arm:40s} lr={lr:g} ({time.time() - t0:.0f}s)", flush=True)
+    (out / "part1_rows.json").write_text(json.dumps(rows, indent=1))      # save before the slow part
     # real PennyLane entangled circuit, 3 seeds, one lr: cross-check of the statevector layer
     if not quick:
-        for arm in ("frozen_binary_4q_L2", "frozen_binary_4q_L5"):
+        for arm in ("frozen_binary_4q_L5",):
             t0 = time.time()
             for sd in (1, 2, 3):
                 rows.append(fit_arm(arm, sd, 1500, 1e-2, q_star, terminal, P))
             print(f"  fitted (real PennyLane) {arm} ({time.time() - t0:.0f}s)", flush=True)
-    (out / "part1_rows.json").write_text(json.dumps(rows, indent=1))
+        (out / "part1_rows.json").write_text(json.dumps(rows, indent=1))
     return rows
 
 

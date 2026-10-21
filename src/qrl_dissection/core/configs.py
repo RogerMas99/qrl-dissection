@@ -527,9 +527,9 @@ def sv_frozen_arm_name(n_layers_q: int, reuse: int) -> str:
     return base if int(reuse) == 1 else f"{base}_OR{int(reuse)}"
 
 
-def cartpole_replica_name(kind: str, reuse: int, suffix: str = "") -> str:
+def cartpole_replica_name(kind: str, reuse: int, suffix: str = "", n_layers: int = 5) -> str:
     """kind: 'sv' (entangled, statevector) or 'su2' (unentangled emulator)."""
-    base = f"{kind}_cartpole_L5"
+    base = f"{kind}_cartpole_L{int(n_layers)}"
     base = base if int(reuse) == 1 else f"{base}_OR{int(reuse)}"
     return base + suffix
 
@@ -574,6 +574,31 @@ EXP09_H_VARIANTS = {
 for _base, _cfg0 in EXP09_H_BASES.items():
     for _vname, _over in EXP09_H_VARIANTS.items():
         ARMS.setdefault(f"{_base}__{_vname}", ("su2", dict(_cfg0, **_over)))
+
+
+# EXP09_BATTERY: validation battery of the simulators against real runs that already exist.
+# Each arm below replicates a REAL arm of exp01-exp08 under its own name (docs/EXPERIMENT-09.md,
+# section 7). Exploratory; not for the final work (docs/SIMULATED-RESULTS-POLICY.md).
+EXP09_BATTERY_DEPTHS = [1, 2]
+for _L in EXP09_BATTERY_DEPTHS:
+    for _R in EXP09_CARTPOLE_REUSE:                     # entangled, vs exp03 DR{L} and exp08 DR{L}_OR{R}
+        _cfg = dict(HYBRID_FIG4, n_layers_q=_L, ent=True)
+        if _R > 1:
+            _cfg["reuse_repetitions"] = _R
+        ARMS.setdefault(cartpole_replica_name("sv", _R, n_layers=_L), ("sv", _cfg))
+    # unentangled twin, vs exp03b hybrid_DR{L}_noent
+    ARMS.setdefault(cartpole_replica_name("su2", 1, n_layers=_L),
+                    ("su2", dict(HYBRID_FIG4, n_layers_q=_L, ent=False)))
+# the same plain circuit through BOTH simulators with ent=False: they must agree with each other
+ARMS.setdefault("sv_cartpole_L5_noent", ("sv", dict(HYBRID_FIG4, ent=False)))
+for _L in (1, 5):
+    ARMS.setdefault(f"sv_frozen_binary_4q_noent_L{_L}", ("sv", frozen_binary_config(_L, ent=False)))
+# exp07's literal Skolik arms (CartPole normalisation, linear head, 4 or 8 qubits)
+for _nq in (4, 8):
+    for _L in (1, 2, 5):
+        ARMS.setdefault(f"sv_paper_skolik_{_nq}q_L{_L}", ("sv", paper_skolik_config(_nq, _L, ent=True)))
+for _L in (2, 5):
+    ARMS.setdefault(f"su2_paper_skolik_4q_L{_L}_noent", ("su2", paper_skolik_config(4, _L, ent=False)))
 
 ARMS["cartpole_fourier_ceiling_L5"] = (
     "fourier_additive",

@@ -117,3 +117,24 @@ def test_exploratory_variants_change_only_what_they_say():
     for suffix, key in (("head16", "net_arch"), ("init0.1", "q_init_std"), ("tis", "trainable_input_scale")):
         _, cfg = build_arm_config(f"su2_frozen_scalar_1q_L5__{suffix}", env_id=FROZEN_SCALAR_ID)
         assert key in cfg and cfg["n_layers_q"] == base["n_layers_q"] and cfg["n_qubits"] == base["n_qubits"]
+
+
+# --------------------------- validation battery (docs/EXPERIMENT-09.md section 7) ------
+def test_battery_groups_and_parameter_parity_with_the_real_arms():
+    mod = _script()
+    assert len(mod.build_specs("Q", 100_000)) == 2 * 5 * 10
+    assert len(mod.build_specs("R", 100_000)) == 3 * 10
+    assert len(mod.build_specs("S", 100_000)) == 8 * 10
+    assert len(mod.build_specs("T", 100_000)) == 2 * 10
+    for g in "QRS":
+        assert mod.group_env(g) == "CartPole-v1"
+    assert mod.group_env("T") == FROZEN_SCALAR_ID
+    pairs = {"sv_paper_skolik_4q_L1": "paper_skolik_4q_L1", "sv_paper_skolik_4q_L5": "paper_skolik_4q_L5",
+             "sv_paper_skolik_8q_L2": "paper_skolik_8q_L2", "su2_paper_skolik_4q_L2_noent": "paper_skolik_4q_L2_noent",
+             "sv_cartpole_L2_OR8": "hybrid_DR2_OR8", "sv_cartpole_L1_OR32": "hybrid_DR1_OR32"}
+    for sim, real in pairs.items():
+        a1, c1 = build_arm_config(sim, env_id="CartPole-v1")
+        n_sim = count_trainable(build_agent_for(a1, c1, env_id="CartPole-v1", is_qnet=True))
+        a2, c2 = build_arm_config(real, env_id="CartPole-v1")
+        n_real = count_trainable(build_agent_for(a2, c2, env_id="CartPole-v1", is_qnet=True))
+        assert n_sim == n_real, (sim, n_sim, real, n_real)

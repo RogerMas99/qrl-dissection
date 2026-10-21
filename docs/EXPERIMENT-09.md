@@ -212,3 +212,57 @@ the optimal action values Q* but fails under DQN points to optimisation, not exp
 The classical MLP on the four bits (needs an observation adapter), extending the emulators
 to the Salinas and Hsiao templates, and any substitution of Colab runs planned for the core.
 
+---
+
+## 7. Validation battery of the simulators (designed 2026-10-21, before any battery cell ran)
+
+> SIMULATOR RESULTS - EXPLORATORY - not for the final work without the author's explicit
+> approval ([SIMULATED-RESULTS-POLICY.md](SIMULATED-RESULTS-POLICY.md)).
+
+**Why.** Section 6's check (the per-pair criterion) found 6 of 7 pairs inside the window and
+failed one (FrozenLake L = 5, `final_perf`, P = 0.21). One pair is too little to say whether the
+simulators reproduce the real circuit. This battery replicates every real arm we already have that
+a simulator can represent, and judges the simulators on all of them together. Real runs are not
+repeated (25 h per FrozenLake seed): the simulator side is run at n = 10 against the real runs
+that exist.
+
+### Pairs (simulator arm vs the real arm it replicates; real seeds 3–10 depending on the arm)
+
+| simulator arm | real arm | source of the real runs | what it tests |
+|---|---|---|---|
+| `sv_cartpole_L5{,_OR4..32}` | `hybrid_fig4`, `hybrid_OR4..32` | exp01, exp02 | done in section 6 |
+| `sv_cartpole_L{1,2}` | `hybrid_DR1`, `hybrid_DR2` | exp03 | depth, entangled |
+| `sv_cartpole_L{1,2}_OR{4,8,16,32}` | `hybrid_DR{1,2}_OR{R}` | exp08 | depth x Output Reuse |
+| `su2_cartpole_L{1,2}` and `su2_cartpole_L5__init2pi` | `hybrid_DR{1,2,5}_noent` | exp03b | unentangled emulator, depth |
+| `su2_cartpole_L5_OR{4,8,16,32}` | `hybrid_or_r{R}_noent` | exp08 | unentangled emulator, OR |
+| `sv_paper_skolik_{4q,8q}_L{1,2,5}` | `paper_skolik_{4q,8q}_L{L}` | exp07 | other qubit counts, other embedding, linear head |
+| `su2_paper_skolik_4q_L{2,5}_noent` | `paper_skolik_4q_L{2,5}_noent` | exp07 | same, unentangled |
+| `su2_frozen_scalar_1q_L{5,10,15}`, `su2_frozen_binary_4q_L{1,5}` | `frozen_scalar_1q_L*`, `frozen_binary_4q_noent_L*` | exp04 | FrozenLake, unentangled (already run in wave 1) |
+| `sv_frozen_binary_4q_L{1,5}` | `frozen_binary_4q_L{1,5}` | exp04 | FrozenLake, entangled (section 6, plus seeds 11–20) |
+| `sv_cartpole_L5_noent`, `sv_frozen_binary_4q_noent_L{1,5}` | `su2_*` twins | this experiment | the two simulators against each other |
+
+### Noise floor
+Two REAL arms that are the same configuration run in different experiments give the size of
+disagreement that real-vs-real already shows: `hybrid_fig4` (exp01) against `hybrid_DR5` (exp03)
+(`HYBRID_FIG4` with `n_layers_q = 5` is the same circuit). The simulators are judged against that
+reference, not against zero.
+
+### Metrics per pair
+`final_perf`, `greedy_final` and the area under the 50-episode moving-average curve (`auc_ma`,
+which sees the whole learning curve, not only its end); P(sim > real), a permutation p-value, and
+the standardised difference d = (mean_sim - mean_real) / pooled sd on `final_perf`.
+
+### Acceptance rule, fixed before the battery runs
+The simulators are accepted as stand-ins for the real circuit **only if all three hold**:
+1. **No global bias.** The mean standardised difference d over all pairs with a non-degenerate
+   spread has a 95 % bootstrap CI that contains 0, and |mean d| <= 0.30.
+2. **No excess of disagreements.** At most 25 % of the (pair, metric) cells have P(sim > real)
+   outside [0.25, 0.75]. (With 10 against 10 seeds about 7 % are expected outside it by chance.)
+3. **The two simulators agree with each other.** For the `sv` ent=False / `su2` twins,
+   P in [0.25, 0.75] on every metric.
+
+The per-pair verdicts of section 6 are kept as they are (one FAIL). A failure of this rule means
+the simulators are not accepted and nothing read from them is interpreted. A pass means they are
+accepted as exploratory tools, still under the policy above: it does not make their results
+usable in the final work.
+

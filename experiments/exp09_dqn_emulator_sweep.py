@@ -34,6 +34,13 @@ H   FrozenLake axes never varied, one at a time from the baseline, on the dead a
     input scale (arm variants) and learning rate {1e-3, 4e-3} (tags). Seeds 1-5, so
     each cell is paired with the baseline of group F.
 
+Groups (validation battery, docs/EXPERIMENT-09.md section 7)
+------------------------------------------------------------
+Q   sv, CartPole, depth L in {1, 2} x R in {1, 4, 8, 16, 32}: replicas of exp03 / exp08 real arms
+R   su2 L in {1, 2} (replicas of exp03b) and sv with ent=False at L=5 (must match su2)
+S   sv / su2 replicas of exp07's literal Skolik arms (4 and 8 qubits)
+T   FrozenLake sv with ent=False (must match su2)
+
 Every cell carries the reuse guard's usual key; groups I, K and H carry the variant in
 `tag`. Run several workers of the same group with `--claim`: they split the cells
 dynamically (cooperative locks, TTL 2 h).
@@ -89,8 +96,8 @@ H_SEEDS = [1, 2, 3, 4, 5]
 SENSITIVITY_ARMS = ["su2_frozen_scalar_1q_L5", "su2_frozen_binary_4q_L5"]
 LR_VALUES = (1e-3, 4e-3)
 SUBDIR = "exp09_dqn_emulator_sweep"
-GROUPS = ["F", "G", "I", "P", "V", "K", "H"]
-CARTPOLE_GROUPS = {"V", "K"}
+GROUPS = ["F", "G", "I", "P", "V", "K", "H", "Q", "R", "S", "T"]
+CARTPOLE_GROUPS = {"V", "K", "Q", "R", "S"}
 
 
 def group_env(group: str) -> str:
@@ -157,6 +164,25 @@ def build_specs(group: str, steps: int, seeds: List[int] = None) -> List[RunSpec
                 add(f"{base}__{vname}", PRIMARY_KWARGS, sds)
             for lr in LR_VALUES:
                 add(base, dict(PRIMARY_KWARGS, learning_rate=lr), sds, _lr_tag(lr))
+    elif group == "Q":          # battery: entangled CartPole depth x OR, vs exp03 / exp08 real arms
+        for L in (1, 2):
+            for R in EXP09_CARTPOLE_REUSE:
+                add(cartpole_replica_name("sv", R, n_layers=L), CARTPOLE_KWARGS, seeds or PRIMARY_SEEDS)
+    elif group == "R":          # battery: unentangled depth twins + sv(ent=False) vs su2
+        sds = seeds or PRIMARY_SEEDS
+        for L in (1, 2):
+            add(cartpole_replica_name("su2", 1, n_layers=L), CARTPOLE_KWARGS, sds)
+        add("sv_cartpole_L5_noent", CARTPOLE_KWARGS, sds)
+    elif group == "S":          # battery: exp07's literal Skolik arms
+        sds = seeds or PRIMARY_SEEDS
+        for nq in (4, 8):
+            for L in (1, 2, 5):
+                add(f"sv_paper_skolik_{nq}q_L{L}", CARTPOLE_KWARGS, sds)
+        for L in (2, 5):
+            add(f"su2_paper_skolik_4q_L{L}_noent", CARTPOLE_KWARGS, sds)
+    elif group == "T":          # battery: FrozenLake, sv(ent=False) vs su2
+        for L in (1, 5):
+            add(f"sv_frozen_binary_4q_noent_L{L}", PRIMARY_KWARGS, seeds or PRIMARY_SEEDS)
     else:
         raise ValueError(group)
     return specs
