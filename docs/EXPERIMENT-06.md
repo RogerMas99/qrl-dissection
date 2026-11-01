@@ -63,6 +63,10 @@ sharp comparison — that is exp05.
   real unentangled circuit `hybrid_fig4_noent` (42.5). Use the `init2pi` runs for
   any entanglement contrast; the entangled `hybrid_fig4` (35.8) does not beat
   them (P = 0.33).
+  **Policy (2026-10-21):** `su2_cartpole_L5` is a simulator arm, so by
+  [SIMULATED-RESULTS-POLICY.md](SIMULATED-RESULTS-POLICY.md) it is exploratory and not
+  for the final work without the author's approval; the real-circuit counterpart is
+  `hybrid_fig4_noent` (exp08).
 - `check_additive_embedding("skolik", 8, n_data=4)` — passes; CartPole's
   Skolik embedding is the cycling case NEW-05's equivalence test already
   covers (`skolik_8q_cartpole_L5`), so no new embedding logic is needed here,

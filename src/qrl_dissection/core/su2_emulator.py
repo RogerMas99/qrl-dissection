@@ -113,6 +113,8 @@ class SU2SkolikEmulator(nn.Module):
         n_layers: int,
         emb_indices: Optional[Sequence[int]] = None,
         transform_fn: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
+        init_std: Optional[float] = None,
+        trainable_input_scale: bool = False,
     ):
         super().__init__()
         self.n_qubits = int(n_qubits)
@@ -120,9 +122,20 @@ class SU2SkolikEmulator(nn.Module):
         self.emb_indices = list(emb_indices) if emb_indices is not None else None
         self.transform_fn = transform_fn
         # Same layout as build_skolik_qlayer's weight_shapes = {"weights": (n_layers, 2, n_qubits)}.
-        self.weights = nn.Parameter(
-            torch.empty(self.n_layers, 2, self.n_qubits).uniform_(0.0, 2.0 * math.pi)
-        )
+        # Default init matches the real layer: U[0, 2*pi) (FIX-12). `init_std` is an
+        # EXPLORATORY option (exp09) that draws N(0, init_std) instead; it is never the
+        # default, so every arm that does not ask for it is unchanged.
+        w = torch.empty(self.n_layers, 2, self.n_qubits)
+        if init_std is None:
+            w.uniform_(0.0, 2.0 * math.pi)
+        else:
+            w.normal_(0.0, float(init_std))
+        self.weights = nn.Parameter(w)
+        # EXPLORATORY option (exp09): one trainable multiplier per (layer, qubit) on the
+        # embedded angle, initialised at 1 (so it starts as the plain circuit). Off by default.
+        self.trainable_input_scale = bool(trainable_input_scale)
+        if self.trainable_input_scale:
+            self.input_scale = nn.Parameter(torch.ones(self.n_layers, self.n_qubits))
 
     def _embed(self, data: torch.Tensor) -> torch.Tensor:
         """Reproduces embeddings.angle_embedding's feature selection exactly
@@ -171,7 +184,8 @@ class SU2SkolikEmulator(nn.Module):
         v[..., 2] = 1.0  # Bloch vector of |0> is (0, 0, 1)
 
         for layer in range(self.n_layers):
-            v = _apply_rx(v, angles)                 # AngleEmbedding(rotation='X')
+            a = angles * self.input_scale[layer] if self.trainable_input_scale else angles
+            v = _apply_rx(v, a)                      # AngleEmbedding(rotation='X')
             v = _apply_ry(v, self.weights[layer, 0])  # RY(weights[layer, 0, i])
             v = _apply_rz(v, self.weights[layer, 1])  # RZ(weights[layer, 1, i])
             # No CZ step: this module only ever represents ent=False.
@@ -233,6 +247,21 @@ class SU2HybridAgent(nn.Module):
     silently emulating a circuit this class cannot represent.
     """
 
+    # Hooks for the statevector subclass (core/statevector.py), which reuses this
+    # construction line for line but accepts ent=True.
+    _ALLOWS_ENT = False
+
+    @staticmethod
+    def _build_q_layer(n_qubits: int, n_layers_q: int, config: dict):
+        return SU2SkolikEmulator(
+            n_qubits,
+            n_layers_q,
+            emb_indices=config.get("emb_indices", None),
+            transform_fn=config.get("transform_fn", None),
+            init_std=config.get("q_init_std", None),
+            trainable_input_scale=bool(config.get("trainable_input_scale", False)),
+        )
+
     def __init__(self, obs_dim: int, act_dim: int, config: dict, is_qnet: bool = True):
         super().__init__()
         if not is_qnet:
@@ -246,7 +275,7 @@ class SU2HybridAgent(nn.Module):
                 f"SU2HybridAgent only emulates circ_type='skolik' "
                 f"(SU2SkolikEmulator's only regime); got circ_type={circ_type!r}."
             )
-        if config.get("ent", False):
+        if config.get("ent", False) and not self._ALLOWS_ENT:
             raise ValueError(
                 "SU2HybridAgent only emulates ent=False (unentangled skolik) - "
                 "an entangled two-qubit state is not describable as independent "
@@ -272,12 +301,7 @@ class SU2HybridAgent(nn.Module):
         self.n_qubits = n_qubits
         self.reuse_repetitions = config.get("reuse_repetitions", 1)
 
-        self.q_layer = SU2SkolikEmulator(
-            n_qubits,
-            n_layers_q,
-            emb_indices=config.get("emb_indices", None),
-            transform_fn=config.get("transform_fn", None),
-        )
+        self.q_layer = self._build_q_layer(n_qubits, n_layers_q, config)
 
         layers: list = [self.q_layer]
         if self.reuse_repetitions > 1:

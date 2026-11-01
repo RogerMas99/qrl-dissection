@@ -243,6 +243,11 @@ def run_arm(
         "git_revision": _git_revision(),
         "python": platform.python_version(),
     }
+    from ..core.provenance import provenance_block
+    prov = provenance_block(agent_type)
+    if prov is not None:
+        # Simulator result: stamped so that no table can pick it up unnoticed.
+        manifest["provenance"] = prov
     manifest_path.write_text(json.dumps(manifest, indent=2, default=str))
     if claim:
         release_cell(manifest_path)

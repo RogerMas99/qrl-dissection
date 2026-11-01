@@ -191,3 +191,7 @@ No experiment has had its 8-10 seed robustness pass yet (plan B in
 > J. Lazaro, J.-I. Vazquez, P. Garcia Bringas. *SimplyQRL: A Modular Benchmarking
 > Library for Hybrid Quantum Reinforcement Learning.* Springer, 2025.
 > doi:10.1007/978-3-032-08462-0_19
+
+## Simulated results
+
+Results produced by the SU(2) emulator or the statevector simulator (agent types `su2`, `sv`) are exploratory and are **not** to be used in the final work without the author's explicit approval: see [docs/SIMULATED-RESULTS-POLICY.md](docs/SIMULATED-RESULTS-POLICY.md).
