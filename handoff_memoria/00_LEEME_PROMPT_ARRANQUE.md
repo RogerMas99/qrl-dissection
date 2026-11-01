@@ -8,10 +8,12 @@
 | `01_DOSSIER_RESULTADOS_v3.md` | **Fuente única de cifras.** Reglas, mapa de experimentos, tablas (secciones 3–5), lectura de resultados F1–F10 (sección 6), salvedades, verificación del aparato (7b, 25 tests), hipótesis, decisiones abiertas y esquema de capítulos |
 | `summary_by_arm.csv` | Una fila por brazo: n, IQM e IC, semillas vivas |
 | `per_seed_metrics.csv` | Una fila por semilla (888 runs). Solo si se piden semillas concretas |
+| `curves_eval_greedy.csv` | **Curvas por semilla**, evaluación greedy cada 10 000 pasos (formato largo: `exp, arm, fix, tag, seed, global_step, greedy_return`; 8 808 filas) |
+| `curves_train_ma50.csv` | **Curvas por semilla** de entrenamiento: media móvil de 50 episodios muestreada cada 1 000 pasos (`... , global_step, train_ma50`; 88 080 filas, ~4 MB). Es un resumen: las curvas episodio a episodio completas siguen en los CSV originales de Drive |
 
 ## Cómo usarlo
 1. Pega `PROMPT_ARRANQUE.txt` como primer mensaje y adjunta el dossier y los dos CSV.
-2. El chat tiene acceso al repositorio de GitHub (RogerMas99/qrl-dissection, rama `main`) para verificar código y tests, pero las cifras salen solo del dossier.
+2. El chat tiene acceso al repositorio final (nuevo, sin historial de commits) para verificar código y tests, pero las cifras salen solo del dossier. Cuando tengas el enlace del repositorio nuevo, dáselo en el mismo mensaje.
 
 ## Lo que el chat puede leer pero NO usar
 Los resultados de simulador (exp09, brazos `su2_*` y `sv_*`, `docs/EXPERIMENT-09*.md`, `docs/SIMULATED-RESULTS-POLICY.md`). El prompt lo prohíbe explícitamente. La política del proyecto exige tu aprobación explícita para llevarlos al trabajo final, y la tabla de aprobaciones sigue vacía.

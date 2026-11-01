@@ -465,7 +465,7 @@ Contraste interno: los brazos de exp02 con OR sobre el circuito de 8 qubits L=5 
 10. **Hardware mixto.** Parte de los runs son locales y parte de Colab: los tiempos `h/seed` no son comparables entre experimentos.
 11. **Reproducibilidad de las cifras.** Las tablas de las secciones 3–5 se han generado con un script a partir de `per_seed_metrics.csv`; los números de la sección 6 se han copiado de ellas. Si una cifra de la sección 6 no coincide con una tabla, **manda la tabla**. Los IC bootstrap proceden de un remuestreo aleatorio: `summary_by_arm.csv` puede diferir del dossier en una o dos décimas en los extremos del IC (los IQM y las P coinciden). **Citar siempre los IC del dossier.**
 
-### 7b. Verificación del aparato (tests automáticos, 25 de 25 superados el 2026-11-01 sobre `main`, commit `359aa5b`)
+### 7b. Verificación del aparato (tests automáticos, 25 de 25 superados el 2026-11-01 sobre la versión final del código)
 
 | qué se verifica | fichero | resultado |
 |---|---|---|
@@ -573,7 +573,7 @@ Estas decisiones no las toma quien redacta: hay que redactar el texto de forma q
 ## 11. Procedencia
 
 - Datos: `Mi unidad/tfm_qrl/results/{exp01_dqn_cartpole_capacity, exp01_dqn_cartpole_capacity_60k_20260805, exp02_dqn_cartpole_output_reuse, exp03_dqn_cartpole_data_reuploading, exp03b_dqn_cartpole_dr_unentangled, exp04_dqn_frozenlake_embeddings, exp07_dqn_cartpole_paper_replication, exp08_dqn_cartpole_frozenlake_followups}` (manifiestos `*.manifest.json` + `runs/*.csv` + `runs/*_eval.csv`).
-- Cifras por semilla: `per_seed_metrics.csv` (columnas `exp, arm, fix, tag, steps, seed, final, greedy, best_ma50, final_ma50, wall_h, phantom`). Resumen por brazo: `summary_by_arm.csv`.
+- Cifras por semilla: `per_seed_metrics.csv` (columnas `exp, arm, fix, tag, steps, seed, final, greedy, best_ma50, final_ma50, wall_h, phantom`). Resumen por brazo: `summary_by_arm.csv`. Curvas por semilla para figuras: `curves_eval_greedy.csv` (greedy cada 10 000 pasos) y `curves_train_ma50.csv` (media móvil de 50 episodios cada 1 000 pasos; ambas con las columnas `exp, arm, fix, tag, seed, global_step`).
 - Estadística: `src/qrl_dissection/core/stats.py` (IQM, IC bootstrap al 95 %, `probability_of_improvement`, `final_performance`, `greedy_final`); definiciones en `docs/STATISTICS.md`.
 - Paper: `data/paper_ppo_summary.csv` (PPO, 10 semillas, `best_ma50`/`final_ma50`; `scripts/extract_paper_baselines.py`).
 - Hipótesis y diseño: `docs/EXPERIMENT-01.md`, `-04.md`, `-05.md`, `-06.md`; correcciones: `docs/CORRECTIONS.md`.
