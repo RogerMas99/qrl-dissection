@@ -9,7 +9,7 @@
 1. **Todo lo propio es DQN.** No hay ningún experimento propio con PPO. Los números de PPO son los del paper de referencia (arXiv:2511.17112, `data/paper_ppo_summary.csv`). Una diferencia con el paper mezcla algoritmo y circuito: **no es por sí sola una "no-replicación"**.
 2. **Métricas principales:** `final_perf` (media del retorno en el último 10 % de episodios de entrenamiento) y `greedy_final` (media de los últimos 3 puntos de evaluación greedy), con **IQM e IC bootstrap al 95 %**, y **P(mejora)** para los contrastes. `best_ma50` (la métrica del paper) solo para comparar con el paper: está inflado en los brazos muertos.
 3. **Los hiperparámetros de DQN nunca se ajustaron** (tasa de aprendizaje 2,5e-4 sin tocar; ver 2b). Todo resultado negativo se redacta "**con estos hiperparámetros**", nunca "el circuito no puede" ni "no funciona".
-4. **Resultados de simulador: excluidos de este paquete a propósito.** Cualquier brazo `su2_*` o `sv_*` y todo el experimento exp09 son exploratorios y **no pueden ir al trabajo final en ninguna forma sin aprobación explícita del autor**. Aquí no hay ninguna de sus cifras. **No las busques, no las cites y no pidas que te las den.** Si el autor te las da por otra vía, indícale que contradice esta regla.
+4. **Resultados de simulador: excluidos del texto final.** Cualquier brazo `su2_*` o `sv_*` y todo el experimento exp09 son exploratorios y **no pueden ir al trabajo final en ninguna forma sin aprobación explícita del autor**. Este dossier no contiene ninguna de sus cifras. Si consultas el repositorio verás esos documentos (`docs/EXPERIMENT-09*.md`, `docs/SIMULATED-RESULTS-POLICY.md`, filas `su2_*`/`sv_*` en algunos CSV y notebooks): puedes leerlos para entender el contexto, pero **no cites, no resumas y no reutilices sus cifras ni sus conclusiones**. La única excepción posible es describir el *método* del simulador (qué es, cómo se construyó, sus límites), y solo si el autor decide mencionarlo (ver el mensaje de arranque y la sección 9).
 5. **No convertir un resultado inconcluyente en uno positivo.** Etiquetas de evidencia usadas en la sección 6: **[FUERTE]** (P ≥ 0,95 en las dos métricas con n = 10), **[MODERADA]**, **[DÉBIL]**, **[NEGATIVO]** (resultado nulo o contrario a la hipótesis de partida).
 6. Donde un dato dependa de una decisión del autor, marcar **DECISIÓN A TOMAR**; donde no se pueda saber con los datos actuales, **NO DETERMINABLE**. No inventar cifras ni mecanismos: si falta un dato, pregúntalo.
 7. Las hipótesis pre-declaradas (sección 8) se citan **en inglés y literalmente**.
@@ -465,6 +465,16 @@ Contraste interno: los brazos de exp02 con OR sobre el circuito de 8 qubits L=5 
 10. **Hardware mixto.** Parte de los runs son locales y parte de Colab: los tiempos `h/seed` no son comparables entre experimentos.
 11. **Reproducibilidad de las cifras.** Las tablas de las secciones 3–5 se han generado con un script a partir de `per_seed_metrics.csv`; los números de la sección 6 se han copiado de ellas. Si una cifra de la sección 6 no coincide con una tabla, **manda la tabla**. Los IC bootstrap proceden de un remuestreo aleatorio: `summary_by_arm.csv` puede diferir del dossier en una o dos décimas en los extremos del IC (los IQM y las P coinciden). **Citar siempre los IC del dossier.**
 
+### 7b. Verificación del aparato (tests automáticos, 25 de 25 superados el 2026-11-01 sobre `main`, commit `359aa5b`)
+
+| qué se verifica | fichero | resultado |
+|---|---|---|
+| Grado del polinomio de Fourier del circuito Skolik sin entrelazar | `tests/test_fourier_ceiling_spectrum.py` (9 tests) | La salida coincide con la base de Fourier completa de grado L (L = 1, 2, 5); si se trunca la frecuencia más alta queda un residuo claro; el control negativo (entrelazado) no es una serie de Fourier limpia |
+| Último anillo CZ de Skolik (FIX-07) | `tests/test_entanglement_noop.py` (8 tests) | A profundidad 1 el flag `ent` no cambia la salida (el anillo final no afecta a una lectura PauliZ); a profundidad 2 y 5 sí; en Hsiao nunca es nulo; con 1 qubit no se puede entrelazar |
+| Linealidad de Config B sin entrelazar | `tests/test_frozenlake_additive_ceiling.py` (8 tests) | Cada salida por qubit toma exactamente dos valores por bit y es afín en los bits (L = 1, 2, 5), con residuo que no crece con la profundidad; el control negativo (entrelazado) no es afín |
+
+Estas verificaciones justifican el techo afín de Config B y la interpretación de los contrastes entrelazado/no entrelazado. Otras comprobaciones (carga de pesos, equivalencia con la librería base, política de reutilización de runs) están en el resto de `tests/`.
+
 ---
 
 ## 8. Hipótesis pre-declaradas (literal, en inglés) y qué dicen los datos
@@ -542,7 +552,7 @@ Estas decisiones no las toma quien redacta: hay que redactar el texto de forma q
 3. **Lectura sobre el entrelazamiento en CartPole (F6).** Se redacta como [MODERADA], solo con OR, sin separación completa.
 4. **Qué se afirma sobre el aporte del trabajo.** Candidatos, no excluyentes: (a) la auditoría y corrección del código de partida (FIX-xx/NEW-xx); (b) la evidencia de que el beneficio cuántico depende del algoritmo (PPO frente a DQN) y de la configuración (OR; profundidad + entrelazamiento en FrozenLake); (c) los techos clásicos como control, más que un "efecto cuántico" genérico. El autor decide el énfasis.
 5. **Ampliaciones fuera del plan.** Hay ideas anotadas sin compromiso (barrido de tasa de aprendizaje, MLP oculta sobre bits en FrozenLake, OR sobre el circuito entrelazado real de FrozenLake). No describirlas como hechas ni como planificadas; en todo caso, como "trabajo futuro".
-6. **Resultados de simulador (exp09).** Siguen excluidos (regla 4). Solo el autor puede levantar la restricción.
+6. **Resultados de simulador (exp09).** Siguen excluidos (regla 4). Solo el autor puede levantar la restricción. **Mención del método:** el autor aún no ha decidido si el trabajo menciona que se construyó un simulador del circuito. Si lo hace, solo se describe el método y sus límites, nunca sus resultados (descripción en el mensaje de arranque).
 
 ## 10. Esquema sugerido para los capítulos Resultados y Conclusiones
 

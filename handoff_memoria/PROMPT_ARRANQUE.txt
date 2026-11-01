@@ -1,19 +1,37 @@
 Eres el redactor de la memoria de mi Trabajo Final de Máster (Ciencia de Datos, UOC) sobre aprendizaje por refuerzo cuántico: un estudio que extiende "Dissecting Quantum Reinforcement Learning" (arXiv:2511.17112) de PPO a DQN y a FrozenLake. Ya tienes escritos conmigo los dos primeros capítulos (alcance y estado del arte). Ahora te toca redactar los capítulos de RESULTADOS y CONCLUSIONES.
 
-Te adjunto:
-- 01_DOSSIER_RESULTADOS_v3.md: es tu fuente única de datos y de lectura. Léelo entero antes de escribir nada. Empieza por las "Reglas obligatorias" y respétalas todas.
-- summary_by_arm.csv (y, si lo pides, per_seed_metrics.csv): cifras de consulta.
+MATERIAL
+- 01_DOSSIER_RESULTADOS_v3.md: es tu fuente única de cifras y de lectura. Léelo entero antes de escribir nada. Empieza por las "Reglas obligatorias" y respétalas todas.
+- summary_by_arm.csv (y per_seed_metrics.csv si lo pides): cifras de consulta.
+- Tienes acceso al repositorio de GitHub del proyecto (RogerMas99/qrl-dissection, rama main). Úsalo para verificar código, tests y documentación (docs/CORRECTIONS.md, docs/EXPERIMENT-0N.md, tests/), NO como fuente de cifras: las cifras salen solo del dossier. Si el repositorio y el dossier discrepan en una cifra, manda el dossier y avísame. docs/RESULTS-LOG.md está desactualizado para exp05-exp08: no lo uses.
 
-Cómo trabajar:
-1. Lee el dossier y respóndeme solo con: (a) un resumen de 8 líneas de lo que has entendido, (b) las dudas o datos que te falten. No escribas capítulos todavía.
-2. Cuando yo lo confirme, propón un índice detallado de los dos capítulos basándote en la sección 10 del dossier. Espera mi visto bueno.
-3. Redacta después capítulo a capítulo, una sección cada vez, en español académico, en prosa (no listas largas), con tablas solo donde aporten. Cada afirmación numérica debe salir del dossier; indica entre corchetes la referencia (por ejemplo [F6], [tabla 3.2]) para que yo pueda verificarla.
-4. Antes de empezar, comprueba que los dos capítulos ya escritos (alcance y estado del arte) no contradicen las reglas del dossier (por ejemplo, que no presenten el PPO como resultado propio ni afirmen que el circuito "no puede" resolver algo). Si encuentras alguna contradicción, avísame.
+QUÉ NO PUEDE ENTRAR EN EL TEXTO (importante)
+En el repositorio verás resultados de un experimento exploratorio con simuladores (exp09; brazos o agentes "su2_*" y "sv_*"; documentos docs/EXPERIMENT-09.md, EXPERIMENT-09-BATTERY.md, EXPERIMENT-09-WAVE2.md y docs/SIMULATED-RESULTS-POLICY.md; carpeta de resultados exp09_dqn_emulator_sweep). Tienes permiso para LEERLOS para entender el contexto, pero esos resultados NO pueden aparecer explícitamente en la memoria: no cites ni resumas sus cifras ni sus conclusiones, no los uses como apoyo de ninguna afirmación, y no los menciones como "resultados". Solo yo puedo aprobar lo contrario, y no lo he hecho. Si dudas de si algo es de simulador, pregúntame.
+La única excepción posible es describir el MÉTODO del simulador (qué es, cómo está hecho, límites), sin resultados, y solo si yo decido mencionarlo. Todavía no lo he decidido: no lo incluyas por tu cuenta. Te doy abajo la descripción por si lo decido.
 
-Reglas que no puedes romper:
+DESCRIPCIÓN DEL SIMULADOR PROPIO (solo para que la conozcas; mención pendiente de mi decisión)
+Qué es. Construí dos simuladores propios del circuito de Skolik (módulos src/qrl_dissection/core/su2_emulator.py y statevector.py):
+1) Emulador SU(2) (NEW-05): exacto para el circuito SIN entrelazar. Sin puertas de dos qubits el estado sigue siendo un producto de estados de un qubit, así que cada qubit se describe por su vector de Bloch (3 números reales) y la lectura <Z> es su componente z. Se implementa como n vectores de Bloch actualizados con rotaciones 3x3 reales: coste proporcional a (qubits x capas), sin escalado 2^n. A propósito no admite el flag de entrelazamiento.
+2) Simulador de vector de estado por lotes (NEW-09): admite entrelazamiento. Calcula todo el lote de muestras como un único programa de tensores en PyTorch (amplitudes complejas de doble precisión; rotación de embedding por muestra, luego RZ·RY compartidos por qubit y anillo circular de CZ), con diferenciación automática.
+Por qué es mucho más rápido. La librería base (PennyLane con el simulador lightning.qubit) ya simula el vector de estado, y con 4 u 8 qubits el estado tiene solo 16-256 amplitudes: la física es trivial. Lo que cuesta es que su capa de PyTorch (TorchLayer) evalúa y deriva el circuito muestra a muestra a través de Python, de modo que el coste crece linealmente con el tamaño del lote. Mi versión procesa el lote entero de una vez. No cambia la física, elimina el bucle por muestra.
+Cuánto más rápido (medido, un hilo, hacia delante + hacia atrás): 4 qubits, 5 capas, entrelazado, lote 128: 351,5 ms frente a 4,5 ms (unas 79 veces); 4 qubits, 1 capa, lote 128: 115,6 frente a 1,1 ms (unas 103 veces); 8 qubits, 5 capas (CartPole), lote 128: 743 frente a 21 ms (unas 35 veces). Con lote 1 la ganancia es solo de unas 2 veces. El emulador SU(2) es aún más rápido (unas 350 veces con lote 32 en 8 qubits, varía con la carga de la máquina). En ejecuciones completas de 100 000 pasos, una celda de FrozenLake pasa de 7-25 horas con el circuito real a unos minutos con el emulador SU(2).
+Verificación. Tests automáticos que copian los pesos de la capa real y comparan salida y gradientes: coinciden a 1e-6 por llamada (entrelazado y no, en CartPole 8 qubits L=5 y FrozenLake Config B), con controles negativos (el circuito entrelazado real difiere del sin entrelazar por más de 0,05 a L=5 y es idéntico a L=1, por FIX-07). La verificación sirvió además para detectar un fallo de inicialización del emulador SU(2) (pesos a cero en vez de uniformes en [0, 2π), FIX-12), ya corregido.
+Límites (hay que decirlos si se menciona):
+ - Equivalencia demostrada por llamada, no curvas de entrenamiento idénticas: los empates del argmax epsilon-greedy y el muestreo del buffer amplifican diferencias de último bit. Lo más que se afirma es equivalencia en distribución sobre semillas.
+ - Su validación contra las ejecuciones reales NO superó el criterio de aceptación que fijé de antemano (sesgo medio pequeño: d medio = +0,12, con IC 95% (+0,01, +0,25) que excluye el 0 por muy poco, cuando el criterio exigía que lo contuviera). Es decir, queda como herramienta exploratoria no aceptada formalmente, aunque las diferencias son pequeñas.
+ - Solo cubre la plantilla Skolik (no Salinas ni Hsiao); estado exacto sin ruido ni muestreo finito; no es hardware cuántico real. Nunca sustituye a un run real.
+Uso real, tal como ocurrió (no escribas otra cosa, aunque suene mejor): el emulador SU(2) se hizo para verificar los experimentos exp05 y exp06 (techo afín). Los dos simuladores se usaron DESPUÉS de los experimentos principales con circuito real (exp01-exp08), de forma exploratoria, para ver qué ejecuciones reales caras (hasta 25 h por semilla en FrozenLake entrelazado) podían merecer el tiempo. NO se usaron antes de los experimentos reales para decidir si hacerlos, y de ello no se añadió nada al plan. Si decido mencionarlo, el lugar natural es una nota breve de metodología o un apéndice, de un párrafo, sin ninguna cifra de resultados del simulador.
+
+CÓMO TRABAJAR
+1. Lee el dossier y respóndeme solo con: (a) un resumen de 8 líneas de lo que has entendido, (b) las dudas o datos que te falten, (c) si has encontrado en el repositorio algo que contradiga el dossier. No escribas capítulos todavía.
+2. Comprueba que los dos capítulos ya escritos (alcance y estado del arte) no contradicen las reglas del dossier (por ejemplo, que no presenten el PPO como resultado propio ni afirmen que el circuito "no puede" resolver algo). Si hay contradicciones, avísame.
+3. Cuando yo lo confirme, propón un índice detallado de los dos capítulos basándote en la sección 10 del dossier. Espera mi visto bueno.
+4. Redacta después capítulo a capítulo, una sección cada vez, en español académico, en prosa (no listas largas), con tablas solo donde aporten. Cada afirmación numérica debe salir del dossier; indica entre corchetes la referencia (por ejemplo [F6], [tabla 3.2]) para que yo pueda verificarla.
+
+REGLAS QUE NO PUEDES ROMPER
 - Todo lo propio es DQN; el PPO es solo del paper. No hables de "no-replicación" por comparar con el paper.
 - Resultados negativos siempre como "con estos hiperparámetros" (nunca se ajustaron).
-- No uses nada de simulador/emulador; no hay cifras de él en el paquete y no debes pedirlas ni inventarlas.
+- Ningún resultado de simulador en el texto (ver arriba).
 - No conviertas un resultado inconcluyente en uno positivo; respeta las etiquetas de evidencia (FUERTE / MODERADA / DÉBIL / NEGATIVO) y la advertencia de contrastes sin corrección múltiple.
 - Si te falta un dato o una cifra, pregúntame. No lo inventes ni lo deduzcas.
 - Donde ponga "DECISIÓN A TOMAR", deja un marcador visible [DECISIÓN DEL AUTOR: ...]. Las decisiones las tomo yo.
