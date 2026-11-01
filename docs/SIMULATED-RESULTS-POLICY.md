@@ -55,8 +55,15 @@ circuit (or from classical arms), possibly guided by what a simulator suggested.
 
 ## Approvals
 
-Explicit approvals by the author are recorded here, one line per use. None so far.
+Explicit approvals by the author are recorded here, one line per use.
 
 | date | what is approved (result, table or figure, and where it appears) |
 |---|---|
-| — | — |
+| 2026-11-01 | Apéndice C de la memoria: descripción y resultado de la batería de validación de los simuladores (los tres criterios, la media de d con su IC, el 3 de 63, el 0 de 9 y el suelo de ruido real-real d = -0,11). Ningún otro resultado de simulador. |
+
+This is the ONLY approved use. Everything else produced by a simulator (including
+`docs/EXPERIMENT-10-X100.md` and its outputs) remains exploratory. Recorded on the
+author's written instruction of 2026-11-01. The validation figures cited in that
+appendix are the ones that stand at the time of writing: the original 2026-10-21
+evaluation and, if the appendix is to quote it, the re-evaluation with complete real
+references in `docs/EXPERIMENT-09-BATTERY.md`; the author decides which set the text uses.
