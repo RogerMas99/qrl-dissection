@@ -600,6 +600,20 @@ for _nq in (4, 8):
 for _L in (2, 5):
     ARMS.setdefault(f"su2_paper_skolik_4q_L{_L}_noent", ("su2", paper_skolik_config(4, _L, ent=False)))
 
+# [exp10] EXPLORATORY - 100-seed extension on the simulators (docs/EXPERIMENT-10-X100.md). Exact
+# ent=False twins on the statevector simulator, so that both sides of an entanglement contrast
+# go through the SAME tool: sv_cartpole_L5_OR{R}_noent is the twin of su2_cartpole_L5_OR{R}
+# (same config; the statevector simulator accepts ent=False), and sv_cartpole_L{1,2}_noent of
+# su2_cartpole_L{1,2}. Not for the final work (docs/SIMULATED-RESULTS-POLICY.md).
+for _R in EXP09_CARTPOLE_REUSE:
+    if _R == 1:
+        continue                                        # sv_cartpole_L5_noent already exists
+    ARMS.setdefault(cartpole_replica_name("sv", _R, "_noent"),
+                    ("sv", dict(HYBRID_FIG4, ent=False, reuse_repetitions=_R)))
+for _L in EXP09_BATTERY_DEPTHS:
+    ARMS.setdefault(cartpole_replica_name("sv", 1, "_noent", n_layers=_L),
+                    ("sv", dict(HYBRID_FIG4, n_layers_q=_L, ent=False)))
+
 ARMS["cartpole_fourier_ceiling_L5"] = (
     "fourier_additive",
     {"n_qubits": HYBRID_FIG4["n_qubits"], "n_layers_q": HYBRID_FIG4["n_layers_q"],
