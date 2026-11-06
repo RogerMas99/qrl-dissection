@@ -672,6 +672,25 @@ def get_environment(name: str) -> Dict[str, Any]:
     return dict(ENVIRONMENTS[name])
 
 
+# ---------------------------------------------------------------------------
+# [exp12] The classical twin of the hybrid. Real CartPole, classical arms. See core/classical_twin.py and
+# docs/EXPERIMENT-12-CLASSICAL-TWIN.md.
+#
+# The twin is the hybrid_OR{R} network with ONLY the circuit replaced by a classical extractor
+# (Linear 4->6, ReLU, Linear 6->8, [Tanh]) with the same 8 outputs: same OutputReuse(R), same head
+# Linear(8R -> 4) -> Identity -> Linear(4 -> 2). Its config is the config of hybrid_OR{R} plus two keys, so the
+# head is defined in one place only. R = 1 has no Output Reuse (as hybrid_fig4).
+#   classical_twin_r{R}            final Tanh: outputs bounded in [-1, 1] like the circuit's <Z_i>
+#   classical_twin_unbounded_r{R}  no final Tanh: the range control
+# Names are exact keys of ARMS (no prefix matching): "classical_twin_r" cannot capture "classical_twin_unbounded_r".
+# ---------------------------------------------------------------------------
+TWIN_REPEATS = [1, 4, 8, 16, 32]
+for _R in TWIN_REPEATS:
+    ARMS[f"classical_twin_r{_R}"] = ("classical_twin", dict(hybrid_or_config(_R), twin_hidden=6, twin_bounded=True))
+    ARMS[f"classical_twin_unbounded_r{_R}"] = ("classical_twin",
+                                                dict(hybrid_or_config(_R), twin_hidden=6, twin_bounded=False))
+
+
 def build_arm_config(
     arm: str,
     hybrid_reference: str = "hybrid_fig4",

@@ -1,0 +1,97 @@
+{
+ "1": {
+  "hybrid_total": 126,
+  "hybrid_head": 46,
+  "hybrid_circuit": 80,
+  "classical_twin": {
+   "total": 132,
+   "extractor": 86,
+   "head": 46,
+   "extra_vs_hybrid": 6,
+   "head_equals_hybrid_head": true
+  },
+  "classical_twin_unbounded": {
+   "total": 132,
+   "extractor": 86,
+   "head": 46,
+   "extra_vs_hybrid": 6,
+   "head_equals_hybrid_head": true
+  }
+ },
+ "4": {
+  "hybrid_total": 222,
+  "hybrid_head": 142,
+  "hybrid_circuit": 80,
+  "classical_twin": {
+   "total": 228,
+   "extractor": 86,
+   "head": 142,
+   "extra_vs_hybrid": 6,
+   "head_equals_hybrid_head": true
+  },
+  "classical_twin_unbounded": {
+   "total": 228,
+   "extractor": 86,
+   "head": 142,
+   "extra_vs_hybrid": 6,
+   "head_equals_hybrid_head": true
+  }
+ },
+ "8": {
+  "hybrid_total": 350,
+  "hybrid_head": 270,
+  "hybrid_circuit": 80,
+  "classical_twin": {
+   "total": 356,
+   "extractor": 86,
+   "head": 270,
+   "extra_vs_hybrid": 6,
+   "head_equals_hybrid_head": true
+  },
+  "classical_twin_unbounded": {
+   "total": 356,
+   "extractor": 86,
+   "head": 270,
+   "extra_vs_hybrid": 6,
+   "head_equals_hybrid_head": true
+  }
+ },
+ "16": {
+  "hybrid_total": 606,
+  "hybrid_head": 526,
+  "hybrid_circuit": 80,
+  "classical_twin": {
+   "total": 612,
+   "extractor": 86,
+   "head": 526,
+   "extra_vs_hybrid": 6,
+   "head_equals_hybrid_head": true
+  },
+  "classical_twin_unbounded": {
+   "total": 612,
+   "extractor": 86,
+   "head": 526,
+   "extra_vs_hybrid": 6,
+   "head_equals_hybrid_head": true
+  }
+ },
+ "32": {
+  "hybrid_total": 1118,
+  "hybrid_head": 1038,
+  "hybrid_circuit": 80,
+  "classical_twin": {
+   "total": 1124,
+   "extractor": 86,
+   "head": 1038,
+   "extra_vs_hybrid": 6,
+   "head_equals_hybrid_head": true
+  },
+  "classical_twin_unbounded": {
+   "total": 1124,
+   "extractor": 86,
+   "head": 1038,
+   "extra_vs_hybrid": 6,
+   "head_equals_hybrid_head": true
+  }
+ }
+}
