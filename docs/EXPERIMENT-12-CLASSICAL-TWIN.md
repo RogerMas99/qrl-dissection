@@ -158,7 +158,7 @@ IQM per arm, tables G1-G4, ratios, application of the reading rule, limitations)
 
 **2026-11-06 - run record (no change to arms, contrasts or reading rule).** The 100 cells (2 families x R in
 {1, 4, 8, 16, 32} x seeds 1-10) ran with 5 workers, each with its own pair of seeds and no cooperative locks, in about
-11 minutes (about 10 s of wall clock per 1 000 steps per cell with five in parallel). No incident: one manifest per cell, no
+11 minutes (about 33 s per cell with five in parallel). No incident: one manifest per cell, no
 error in any log, 10 seeds in every arm. The runner was smoke-tested (1 seed, 5 000 steps) and the full test suite
 (326 passed, 1 skipped) was run before launching. The analysis applies the operationalisation of section 6 mechanically.
 Observation made when reading the result, not a change of rule: the mechanical label of branch 3 at R = 16 ("tied to
