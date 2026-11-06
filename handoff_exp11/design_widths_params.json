@@ -1,0 +1,56 @@
+{
+ "4": {
+  "hybrid_OR_total": 222,
+  "old_matched": {
+   "width": 12,
+   "n_repeats": 4,
+   "params": 230
+  },
+  "new_rep": {
+   "width": 12,
+   "n_repeats": 4,
+   "params": 230
+  }
+ },
+ "8": {
+  "hybrid_OR_total": 350,
+  "old_matched": {
+   "width": 18,
+   "n_repeats": 4,
+   "params": 344
+  },
+  "new_rep": {
+   "width": 10,
+   "n_repeats": 8,
+   "params": 352
+  }
+ },
+ "16": {
+  "hybrid_OR_total": 606,
+  "old_matched": {
+   "width": 32,
+   "n_repeats": 4,
+   "params": 610
+  },
+  "new_rep": {
+   "width": 9,
+   "n_repeats": 16,
+   "params": 605
+  }
+ },
+ "32": {
+  "hybrid_OR_total": 1118,
+  "old_matched": {
+   "width": 59,
+   "n_repeats": 4,
+   "params": 1123
+  },
+  "new_rep": {
+   "width": 9,
+   "n_repeats": 32,
+   "params": 1181
+  }
+ },
+ "r4_identical_to_classical_or_matched_r4": true,
+ "eval_episodes": 5
+}

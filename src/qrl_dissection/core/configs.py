@@ -751,7 +751,45 @@ def build_arm_config(
         cfg.update(overrides)
         return "classic", cfg
 
+    if arm.startswith("classical_or_matched_rep_r"):
+        # [exp11] The replication control. classical_or_matched_r{R} (below) matches the hybrid's
+        # budget but keeps its replication fixed at PAPER_LINEAR["n_repeats"] (4), so it cannot show
+        # whether replication helps a classical net that can learn. This arm replicates the input R
+        # times (the same R as hybrid_OR{R}) AND has a ReLU hidden layer AND sees the full
+        # observation AND matches the hybrid's MEASURED total. Because the replicated input makes
+        # the first layer consume more of the budget, its hidden width is smaller than that of
+        # classical_or_matched_r{R}; the width is derived here, never hard-coded.
+        # Must stay BEFORE the classical_or_matched_r branch: that prefix also matches this name.
+        try:
+            reps = int(arm.rsplit("_r", 1)[1])
+        except (IndexError, ValueError) as exc:
+            raise ValueError(
+                f"{arm!r}: expected 'classical_or_matched_rep_r<R>', e.g. "
+                "'classical_or_matched_rep_r16'"
+            ) from exc
+        budgets = pqc_parameter_budget(hybrid_or_config(reps), env_id=env_id)
+        budget = budgets["total"] if match_to == "total" else budgets["quantum"]
+        in_dim = len(MATCHED_REUSE_INDICES_FAIR) * reps
+        width, spent = match_hidden_width(budget, in_dim=in_dim, out_dim=2)
+        cfg = {
+            "reuse_indices": list(MATCHED_REUSE_INDICES_FAIR),
+            "n_repeats": reps,
+            "net_arch": [width],
+            "activation": activation,
+            "_matched_to": f"hybrid_or_r{reps}",
+            "_match_target": match_to,
+            "_budget": budget,
+            "_hybrid_total": budgets["total"],
+            "_hybrid_quantum": budgets["quantum"],
+            "_spent_params": spent,
+        }
+        cfg.update(overrides)
+        return "classic", cfg
+
     if arm.startswith("classical_or_matched_r"):
+        if arm.startswith("classical_or_matched_rep"):
+            raise ValueError(f"{arm!r}: not an arm; the replication control is "
+                             "'classical_or_matched_rep_r<R>'")
         # [FIX-09 follow-up] exp02's classical_OR{R} is not capacity-matched
         # (see docs/CORRECTIONS.md#fix-09): it keeps the paper's amputated,
         # zero-hidden-layer design at every R, while OR grows the HYBRID
