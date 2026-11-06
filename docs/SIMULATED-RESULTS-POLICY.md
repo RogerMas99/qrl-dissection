@@ -59,11 +59,12 @@ Explicit approvals by the author are recorded here, one line per use.
 
 | date | what is approved (result, table or figure, and where it appears) |
 |---|---|
-| 2026-11-01 | Apéndice C de la memoria: descripción y resultado de la batería de validación de los simuladores (los tres criterios, la media de d con su IC, el 3 de 63, el 0 de 9 y el suelo de ruido real-real d = -0,11). Ningún otro resultado de simulador. |
+| 2026-11-01 | Apéndice C de la memoria: descripción y resultado de la batería de validación de los simuladores (los tres criterios, la media de d con su IC, el 3 de 63, el 0 de 9 y el suelo de ruido real-real d = -0,11). Ningún otro resultado de simulador salvo los que figuren en otra fila de esta tabla. |
+| 2026-11-03 | Resultados del experimento 10 (`docs/EXPERIMENT-10-X100.md`, 100 semillas en los simuladores): se entregan al chat que redacta la memoria para que los revise y valore si conviene ajustar alguna parte del trabajo. Si se incluye algo en la memoria, es obligatorio decir que son resultados adicionales calculados con el emulador para corroborar o acabar de cerrar hipótesis. Qué entra y dónde lo decide el autor. |
 
-This is the ONLY approved use. Everything else produced by a simulator (including
-`docs/EXPERIMENT-10-X100.md` and its outputs) remains exploratory. Recorded on the
-author's written instruction of 2026-11-01. The validation figures cited in that
-appendix are the ones that stand at the time of writing: the original 2026-10-21
+Approved uses so far: the two rows above. Everything else produced by a simulator remains
+exploratory. The first row is recorded on the author's written instruction of 2026-11-01,
+the second on the author's instruction of 2026-11-03. The validation figures cited in the
+Apéndice C (first row) are the ones that stand at the time of writing: the original 2026-10-21
 evaluation and, if the appendix is to quote it, the re-evaluation with complete real
 references in `docs/EXPERIMENT-09-BATTERY.md`; the author decides which set the text uses.

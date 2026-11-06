@@ -1,0 +1,9 @@
+Te paso resultados extra del experimento 10 (100 semillas en el emulador). Empieza por DOSSIER_EMULADOR_X100.md y revísalos. Dime si conviene ajustar alguna parte de Resultados o Conclusiones, o cerrar alguna hipótesis abierta.
+
+Reglas:
+1. Salen de simuladores, no del circuito real. No cambies ni sustituyas ningún número del circuito real.
+2. Si incluyes algo, di siempre que son resultados adicionales calculados con el emulador para corroborar o acabar de cerrar hipótesis, y no los mezcles con las tablas del circuito real.
+3. Los resultados negativos son "con estos hiperparámetros".
+4. No afirmes nada sobre cuándo se usaron los emuladores respecto a los experimentos reales. Si hace falta, pregúntame.
+
+Primero propón los ajustes y no escribas nada hasta que yo te diga cuáles.

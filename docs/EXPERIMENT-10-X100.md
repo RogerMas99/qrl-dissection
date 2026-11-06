@@ -104,4 +104,17 @@ tables of C1-C4, a one-page reading). Produced by `experiments/exp10_analysis.py
 
 ## Amendments
 
-*(none)*
+**2026-11-03 - run incidents (no change to arms, contrasts or reading rules).**
+
+- The sweep ran 2 300 cells (all four groups) with 14 workers. The machine restarted once while 14 cells
+  were in flight; those 14 cells (seeds 92 and 93 of the L=5 arms) were run again from scratch by the
+  same command and their episode files are consistent (one TensorBoard file per attempt, one episodes CSV).
+- In 8 cells of P3 (`sv_cartpole_L2_OR{4,8,16,32}`, seeds 11, 47, 48, 49, 55) two or three workers had
+  claimed the same cell at the same moment (race in the cooperative lock), so their episodes CSV could be
+  a mix of writers (two of them had a cut line). Those 8 cells were moved, not deleted, to
+  `exp10_emulator_x100/_quarantine_dup_writers/` and run again with a single writer. Only the re-runs are
+  analysed. An audit of all 2 300 cells (one TensorBoard file per cell; `episode_n` = 1..N; `global_step`
+  monotone; last step >= 99 000) finds no other cell with this problem.
+- `reused_seeds.json` was overwritten for the four `sv_cartpole_L2_OR*` arms by those re-runs (they were
+  launched with `--seeds`); it was regenerated for the full range 1-100 and the script no longer writes
+  it when `--seeds` is given.

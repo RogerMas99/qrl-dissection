@@ -1,0 +1,846 @@
+{
+ "su2_cartpole_L5": {
+  "1": [
+   "exp01_dqn_cartpole_capacity",
+   "init2pi"
+  ],
+  "10": [
+   "exp01_dqn_cartpole_capacity",
+   "init2pi"
+  ],
+  "2": [
+   "exp01_dqn_cartpole_capacity",
+   "init2pi"
+  ],
+  "3": [
+   "exp01_dqn_cartpole_capacity",
+   "init2pi"
+  ],
+  "4": [
+   "exp01_dqn_cartpole_capacity",
+   "init2pi"
+  ],
+  "5": [
+   "exp01_dqn_cartpole_capacity",
+   "init2pi"
+  ],
+  "6": [
+   "exp01_dqn_cartpole_capacity",
+   "init2pi"
+  ],
+  "7": [
+   "exp01_dqn_cartpole_capacity",
+   "init2pi"
+  ],
+  "8": [
+   "exp01_dqn_cartpole_capacity",
+   "init2pi"
+  ],
+  "9": [
+   "exp01_dqn_cartpole_capacity",
+   "init2pi"
+  ]
+ },
+ "su2_cartpole_L5_OR16": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "su2_cartpole_L5_OR32": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "su2_cartpole_L5_OR4": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "su2_cartpole_L5_OR8": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "sv_cartpole_L1": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "sv_cartpole_L1_noent": {},
+ "sv_cartpole_L2": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "sv_cartpole_L2_OR16": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "sv_cartpole_L2_OR32": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "sv_cartpole_L2_OR4": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "sv_cartpole_L2_OR8": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "sv_cartpole_L2_noent": {},
+ "sv_cartpole_L5": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "sv_cartpole_L5_OR16": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "sv_cartpole_L5_OR16_noent": {},
+ "sv_cartpole_L5_OR32": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "sv_cartpole_L5_OR32_noent": {},
+ "sv_cartpole_L5_OR4": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "sv_cartpole_L5_OR4_noent": {},
+ "sv_cartpole_L5_OR8": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "sv_cartpole_L5_OR8_noent": {},
+ "sv_cartpole_L5_noent": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "sv_frozen_binary_4q_L5": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "11": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "12": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "13": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "14": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "15": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "16": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "17": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "18": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "19": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "20": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ },
+ "sv_frozen_binary_4q_noent_L5": {
+  "1": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "10": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "2": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "3": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "4": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "5": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "6": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "7": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "8": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ],
+  "9": [
+   "exp09_dqn_emulator_sweep",
+   ""
+  ]
+ }
+}

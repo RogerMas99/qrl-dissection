@@ -155,7 +155,7 @@ def main() -> int:
 
     outdir.mkdir(parents=True, exist_ok=True)
     (outdir / "NOT_FOR_THESIS.md").write_text(NOTICE, encoding="utf-8")
-    if not args.smoke:
+    if not args.smoke and args.seeds is None:      # a --seeds subset must not overwrite the full-range list
         rf = outdir / "reused_seeds.json"
         prev = json.loads(rf.read_text()) if rf.exists() else {}
         for arm, v in reused.items():
