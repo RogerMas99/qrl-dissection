@@ -1,0 +1,39 @@
+experiment,env_id,algo,kwargs_in_spec (rest = library default),total_timesteps,fix_autoreset,n_runs
+exp01_dqn_cartpole_capacity,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",100000,False,40
+exp01_dqn_cartpole_capacity,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",100000,True,70
+exp01_dqn_cartpole_capacity_60k_20260805,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",60000,False,9
+exp01_dqn_cartpole_capacity_60k_20260805,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",60000,True,9
+exp02_dqn_cartpole_output_reuse,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",100000,,16
+exp02_dqn_cartpole_output_reuse,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",100000,True,104
+exp02_dqn_cartpole_output_reuse,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",1500,True,1
+exp03_dqn_cartpole_data_reuploading,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",100000,,9
+exp03_dqn_cartpole_data_reuploading,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",100000,True,21
+exp03_dqn_cartpole_data_reuploading,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",1500,True,1
+exp03b_dqn_cartpole_dr_unentangled,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",100000,True,30
+exp04_dqn_frozenlake_embeddings,FrozenLake4x4OneHot-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 50000, ""learning_starts"": 1000, ""train_frequency"": 1}",100000,False,10
+exp04_dqn_frozenlake_embeddings,FrozenLake4x4OneHot-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 50000, ""learning_starts"": 1000, ""train_frequency"": 1}",100000,True,10
+exp04_dqn_frozenlake_embeddings,FrozenLake4x4Scalar-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 50000, ""learning_starts"": 1000, ""train_frequency"": 1}",100000,False,20
+exp04_dqn_frozenlake_embeddings,FrozenLake4x4Scalar-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 50000, ""learning_starts"": 1000, ""train_frequency"": 1}",100000,True,190
+exp07_dqn_cartpole_paper_replication,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",100000,True,240
+exp08_dqn_cartpole_frozenlake_followups,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",100000,True,130
+exp09_dqn_emulator_sweep,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""learning_rate"": 0.001, ""train_frequency"": 10}",100000,True,20
+exp09_dqn_emulator_sweep,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""learning_rate"": 0.004, ""train_frequency"": 10}",100000,True,20
+exp09_dqn_emulator_sweep,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",100000,True,320
+exp09_dqn_emulator_sweep,FrozenLake4x4Scalar-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""learning_starts"": 1000, ""train_frequency"": 10}",100000,True,6
+exp09_dqn_emulator_sweep,FrozenLake4x4Scalar-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""learning_starts"": 1000, ""train_frequency"": 1}",100000,True,6
+exp09_dqn_emulator_sweep,FrozenLake4x4Scalar-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""learning_starts"": 10000, ""train_frequency"": 10}",100000,True,6
+exp09_dqn_emulator_sweep,FrozenLake4x4Scalar-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""learning_starts"": 10000, ""train_frequency"": 1}",100000,True,6
+exp09_dqn_emulator_sweep,FrozenLake4x4Scalar-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 50000, ""learning_rate"": 0.001, ""learning_starts"": 1000, ""train_frequency"": 1}",100000,True,15
+exp09_dqn_emulator_sweep,FrozenLake4x4Scalar-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 50000, ""learning_rate"": 0.004, ""learning_starts"": 1000, ""train_frequency"": 1}",100000,True,15
+exp09_dqn_emulator_sweep,FrozenLake4x4Scalar-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 50000, ""learning_starts"": 1000, ""train_frequency"": 10}",100000,True,6
+exp09_dqn_emulator_sweep,FrozenLake4x4Scalar-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 50000, ""learning_starts"": 1000, ""train_frequency"": 1}",100000,True,456
+exp09_dqn_emulator_sweep,FrozenLake4x4Scalar-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 50000, ""learning_starts"": 10000, ""train_frequency"": 10}",100000,True,6
+exp09_dqn_emulator_sweep,FrozenLake4x4Scalar-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 50000, ""learning_starts"": 10000, ""train_frequency"": 1}",100000,True,6
+exp10_emulator_x100,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",100000,True,2130
+exp10_emulator_x100,FrozenLake4x4Scalar-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 50000, ""learning_starts"": 1000, ""train_frequency"": 1}",100000,True,170
+exp11_replication_control,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",100000,True,30
+exp12_classical_twin,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",100000,True,100
+exp13_efg,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",100000,True,270
+exp13_efg,FrozenLake4x4Scalar-v0,dqn,"{""batch_size"": 128, ""buffer_size"": 50000, ""learning_starts"": 1000, ""train_frequency"": 1}",100000,True,60
+exp13_lr_equivalence,CartPole-v1,dqn,"{""batch_size"": 128, ""buffer_size"": 10000, ""train_frequency"": 10}",100000,True,1200
+exp13_ppo,CartPole-v1,ppo,"{""anneal_lr"": true, ""clip_coef"": 0.2, ""clip_vloss"": true, ""ent_coef"": 0.01, ""gae_lambda"": 0.95, ""gamma"": 0.99, ""learning_rate"": 0.00025, ""max_grad_norm"": 0.5, ""norm_adv"": true, ""num_envs"": 1, ""num_minibatches"": 16, ""num_steps"": 512, ""target_kl"": null, ""update_epochs"": 4, ""vf_coef"": 0.5}",100000,False,600

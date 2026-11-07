@@ -1,0 +1,32 @@
+{
+ "hybrid_R8_s1": {
+  "first_diff_step": null,
+  "max_param_diff_to_first_diff": 1.195862786573798e-08,
+  "max_param_diff_final": 9.22550968951441e-09,
+  "n_steps": 100001,
+  "agent": "hybrid",
+  "R": 8,
+  "seed": 1,
+  "wall_s": 2397.7
+ },
+ "hybrid_R8_s2": {
+  "first_diff_step": null,
+  "max_param_diff_to_first_diff": 1.789914394478842e-08,
+  "max_param_diff_final": 1.3997588865777288e-08,
+  "n_steps": 100001,
+  "agent": "hybrid",
+  "R": 8,
+  "seed": 2,
+  "wall_s": 3043.7
+ },
+ "hybrid_R8_s3": {
+  "first_diff_step": null,
+  "max_param_diff_to_first_diff": 5.740494524175688e-09,
+  "max_param_diff_final": 3.82399001352951e-09,
+  "n_steps": 100001,
+  "agent": "hybrid",
+  "R": 8,
+  "seed": 3,
+  "wall_s": 3420.7
+ }
+}

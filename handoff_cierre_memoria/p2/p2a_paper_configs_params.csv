@@ -1,0 +1,25 @@
+arm,agent_type,template,n_qubits,n_layers_q,R,entangled,input_transform,emb_indices_or_reuse_indices,net_arch,trainable_params_measured,env_id
+paper_skolik_4q_L1,hybrid,skolik,4,1,,True,CartPoleNormalizationTransformer,,,18,CartPole-v1
+paper_skolik_4q_L2,hybrid,skolik,4,2,,True,CartPoleNormalizationTransformer,,,26,CartPole-v1
+paper_skolik_4q_L5,hybrid,skolik,4,5,,True,CartPoleNormalizationTransformer,,,50,CartPole-v1
+paper_skolik_8q_L1,hybrid,skolik,8,1,,True,CartPoleNormalizationTransformer,,,34,CartPole-v1
+paper_skolik_8q_L2,hybrid,skolik,8,2,,True,CartPoleNormalizationTransformer,,,50,CartPole-v1
+paper_skolik_8q_L5,hybrid,skolik,8,5,,True,CartPoleNormalizationTransformer,,,98,CartPole-v1
+paper_salinas_1q_L1,hybrid,dr,1,1,,True,CartPoleNormalizationTransformer,"[1, 2, 3]",,7,CartPole-v1
+paper_salinas_1q_L2,hybrid,dr,1,2,,True,CartPoleNormalizationTransformer,"[1, 2, 3]",,10,CartPole-v1
+paper_salinas_1q_L5,hybrid,dr,1,5,,True,CartPoleNormalizationTransformer,"[1, 2, 3]",,19,CartPole-v1
+paper_salinas_2q_L1,hybrid,dr,2,1,,True,CartPoleNormalizationTransformer,"[1, 2, 3]",,12,CartPole-v1
+paper_salinas_2q_L2,hybrid,dr,2,2,,True,CartPoleNormalizationTransformer,"[1, 2, 3]",,18,CartPole-v1
+paper_salinas_2q_L5,hybrid,dr,2,5,,True,CartPoleNormalizationTransformer,"[1, 2, 3]",,36,CartPole-v1
+paper_hsiao_or_r4,hybrid,hsiao,4,1,4,False,ArctanTransformer,"[1, 2, 3]",,38,CartPole-v1
+paper_classical_or_r4,classic,,,,4,,,"[1, 2, 3]",[],26,CartPole-v1
+paper_hsiao_or_r8,hybrid,hsiao,4,1,8,False,ArctanTransformer,"[1, 2, 3]",,70,CartPole-v1
+paper_classical_or_r8,classic,,,,8,,,"[1, 2, 3]",[],50,CartPole-v1
+paper_hsiao_or_r16,hybrid,hsiao,4,1,16,False,ArctanTransformer,"[1, 2, 3]",,134,CartPole-v1
+paper_classical_or_r16,classic,,,,16,,,"[1, 2, 3]",[],98,CartPole-v1
+paper_hsiao_or_r32,hybrid,hsiao,4,1,32,False,ArctanTransformer,"[1, 2, 3]",,262,CartPole-v1
+paper_classical_or_r32,classic,,,,32,,,"[1, 2, 3]",[],194,CartPole-v1
+paper_skolik_4q_L2_noent,hybrid,skolik,4,2,,False,CartPoleNormalizationTransformer,,,26,CartPole-v1
+paper_skolik_4q_L5_noent,hybrid,skolik,4,5,,False,CartPoleNormalizationTransformer,,,50,CartPole-v1
+paper_hsiao_or_r4_ent,hybrid,hsiao,4,1,4,True,ArctanTransformer,"[1, 2, 3]",,38,CartPole-v1
+paper_hsiao_or_r16_ent,hybrid,hsiao,4,1,16,True,ArctanTransformer,"[1, 2, 3]",,134,CartPole-v1

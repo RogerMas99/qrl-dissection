@@ -1,0 +1,13 @@
+parameter,library_default
+seed,1
+learning_rate,0.00025
+buffer_size,10000
+gamma,0.99
+tau,1.0
+target_network_frequency,500
+batch_size,128
+start_e,1.0
+end_e,0.05
+exploration_fraction,0.5
+learning_starts,10000
+train_frequency,10

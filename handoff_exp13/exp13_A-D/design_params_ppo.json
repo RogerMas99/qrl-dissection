@@ -1,0 +1,168 @@
+{
+ "ppo_config": {
+  "learning_rate": 0.00025,
+  "num_envs": 1,
+  "num_steps": 512,
+  "anneal_lr": true,
+  "gamma": 0.99,
+  "gae_lambda": 0.95,
+  "num_minibatches": 16,
+  "update_epochs": 4,
+  "norm_adv": true,
+  "clip_coef": 0.2,
+  "clip_vloss": true,
+  "ent_coef": 0.01,
+  "vf_coef": 0.5,
+  "max_grad_norm": 0.5,
+  "target_kl": null
+ },
+ "obs_indices": [
+  1,
+  2,
+  3
+ ],
+ "eval_every": 10000,
+ "eval_episodes": 20,
+ "arms": {
+  "ppo_reuse_clip_r1": {
+   "R": 1,
+   "collapse": false,
+   "clip_mode": "torch",
+   "params": 12,
+   "head_lr_mult": 1.0
+  },
+  "ppo_reuse_clip_r4": {
+   "R": 4,
+   "collapse": false,
+   "clip_mode": "torch",
+   "params": 39,
+   "head_lr_mult": 1.0
+  },
+  "ppo_reuse_clip_r8": {
+   "R": 8,
+   "collapse": false,
+   "clip_mode": "torch",
+   "params": 75,
+   "head_lr_mult": 1.0
+  },
+  "ppo_reuse_clip_r16": {
+   "R": 16,
+   "collapse": false,
+   "clip_mode": "torch",
+   "params": 147,
+   "head_lr_mult": 1.0
+  },
+  "ppo_reuse_clip_r32": {
+   "R": 32,
+   "collapse": false,
+   "clip_mode": "torch",
+   "params": 291,
+   "head_lr_mult": 1.0
+  },
+  "ppo_reuse_noclip_r1": {
+   "R": 1,
+   "collapse": false,
+   "clip_mode": "none",
+   "params": 12,
+   "head_lr_mult": 1.0
+  },
+  "ppo_reuse_noclip_r4": {
+   "R": 4,
+   "collapse": false,
+   "clip_mode": "none",
+   "params": 39,
+   "head_lr_mult": 1.0
+  },
+  "ppo_reuse_noclip_r8": {
+   "R": 8,
+   "collapse": false,
+   "clip_mode": "none",
+   "params": 75,
+   "head_lr_mult": 1.0
+  },
+  "ppo_reuse_noclip_r16": {
+   "R": 16,
+   "collapse": false,
+   "clip_mode": "none",
+   "params": 147,
+   "head_lr_mult": 1.0
+  },
+  "ppo_reuse_noclip_r32": {
+   "R": 32,
+   "collapse": false,
+   "clip_mode": "none",
+   "params": 291,
+   "head_lr_mult": 1.0
+  },
+  "ppo_lrx_clip_r4": {
+   "R": 4,
+   "collapse": true,
+   "clip_mode": "torch",
+   "params": 12,
+   "head_lr_mult": 4.0
+  },
+  "ppo_lrx_clip_r8": {
+   "R": 8,
+   "collapse": true,
+   "clip_mode": "torch",
+   "params": 12,
+   "head_lr_mult": 8.0
+  },
+  "ppo_lrx_clip_r16": {
+   "R": 16,
+   "collapse": true,
+   "clip_mode": "torch",
+   "params": 12,
+   "head_lr_mult": 16.0
+  },
+  "ppo_lrx_clip_r32": {
+   "R": 32,
+   "collapse": true,
+   "clip_mode": "torch",
+   "params": 12,
+   "head_lr_mult": 32.0
+  },
+  "ppo_lrx_noclip_r4": {
+   "R": 4,
+   "collapse": true,
+   "clip_mode": "none",
+   "params": 12,
+   "head_lr_mult": 4.0
+  },
+  "ppo_lrx_noclip_r8": {
+   "R": 8,
+   "collapse": true,
+   "clip_mode": "none",
+   "params": 12,
+   "head_lr_mult": 8.0
+  },
+  "ppo_lrx_noclip_r16": {
+   "R": 16,
+   "collapse": true,
+   "clip_mode": "none",
+   "params": 12,
+   "head_lr_mult": 16.0
+  },
+  "ppo_lrx_noclip_r32": {
+   "R": 32,
+   "collapse": true,
+   "clip_mode": "none",
+   "params": 12,
+   "head_lr_mult": 32.0
+  },
+  "ppo_lrx_modclip_r8": {
+   "R": 8,
+   "collapse": true,
+   "clip_mode": "modified",
+   "params": 12,
+   "head_lr_mult": 8.0
+  },
+  "ppo_lrx_modclip_r32": {
+   "R": 32,
+   "collapse": true,
+   "clip_mode": "modified",
+   "params": 12,
+   "head_lr_mult": 32.0
+  }
+ }
+}

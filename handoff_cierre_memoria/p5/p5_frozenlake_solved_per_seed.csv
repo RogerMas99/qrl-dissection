@@ -1,0 +1,81 @@
+group,arm,seed,last_checkpoint_step,last_greedy_return,solved_last_checkpoint,greedy_final_last3,solved_exp13_dossier_criterion,n_eval_rows
+mlp_bits_w6 (exp13),mlp_bits_w6,10,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,11,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,12,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,13,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,14,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,15,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,16,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,17,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,18,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,19,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,1,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,20,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,21,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,22,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,23,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,24,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,25,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,26,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,27,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,28,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,29,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,2,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,30,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,3,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,4,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,5,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,6,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,7,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,8,100000,0.0,False,0.0,False,10
+mlp_bits_w6 (exp13),mlp_bits_w6,9,100000,0.0,False,0.0,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,10,100000,0.0,False,0.0,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,11,100000,1.0,True,1.0,True,10
+mlp_bits_w12 (exp13),mlp_bits_w12,12,100000,0.0,False,0.0,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,13,100000,1.0,True,1.0,True,10
+mlp_bits_w12 (exp13),mlp_bits_w12,14,100000,1.0,True,1.0,True,10
+mlp_bits_w12 (exp13),mlp_bits_w12,15,100000,1.0,True,1.0,True,10
+mlp_bits_w12 (exp13),mlp_bits_w12,16,100000,1.0,True,0.3333333333333333,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,17,100000,1.0,True,1.0,True,10
+mlp_bits_w12 (exp13),mlp_bits_w12,18,100000,1.0,True,0.6666666666666666,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,19,100000,0.0,False,0.0,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,1,100000,0.0,False,0.0,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,20,100000,1.0,True,1.0,True,10
+mlp_bits_w12 (exp13),mlp_bits_w12,21,100000,1.0,True,1.0,True,10
+mlp_bits_w12 (exp13),mlp_bits_w12,22,100000,1.0,True,1.0,True,10
+mlp_bits_w12 (exp13),mlp_bits_w12,23,100000,1.0,True,1.0,True,10
+mlp_bits_w12 (exp13),mlp_bits_w12,24,100000,1.0,True,1.0,True,10
+mlp_bits_w12 (exp13),mlp_bits_w12,25,100000,0.0,False,0.0,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,26,100000,0.0,False,0.0,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,27,100000,0.0,False,0.0,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,28,100000,1.0,True,0.6666666666666666,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,29,100000,0.0,False,0.0,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,2,100000,1.0,True,1.0,True,10
+mlp_bits_w12 (exp13),mlp_bits_w12,30,100000,1.0,True,1.0,True,10
+mlp_bits_w12 (exp13),mlp_bits_w12,3,100000,1.0,True,0.3333333333333333,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,4,100000,0.0,False,0.0,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,5,100000,1.0,True,1.0,True,10
+mlp_bits_w12 (exp13),mlp_bits_w12,6,100000,0.0,False,0.0,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,7,100000,0.0,False,0.0,False,10
+mlp_bits_w12 (exp13),mlp_bits_w12,8,100000,1.0,True,1.0,True,10
+mlp_bits_w12 (exp13),mlp_bits_w12,9,100000,1.0,True,1.0,True,10
+"frozen_binary_4q_L1 (entangled binary circuit, exp04)",frozen_binary_4q_L1,1,100000,0.0,False,0.0,False,10
+"frozen_binary_4q_L1 (entangled binary circuit, exp04)",frozen_binary_4q_L1,10,100000,0.0,False,0.0,False,10
+"frozen_binary_4q_L1 (entangled binary circuit, exp04)",frozen_binary_4q_L1,2,100000,0.0,False,0.0,False,10
+"frozen_binary_4q_L1 (entangled binary circuit, exp04)",frozen_binary_4q_L1,3,100000,0.0,False,0.0,False,10
+"frozen_binary_4q_L1 (entangled binary circuit, exp04)",frozen_binary_4q_L1,4,100000,0.0,False,0.0,False,10
+"frozen_binary_4q_L1 (entangled binary circuit, exp04)",frozen_binary_4q_L1,5,100000,0.0,False,0.0,False,10
+"frozen_binary_4q_L1 (entangled binary circuit, exp04)",frozen_binary_4q_L1,6,100000,0.0,False,0.0,False,10
+"frozen_binary_4q_L1 (entangled binary circuit, exp04)",frozen_binary_4q_L1,7,100000,0.0,False,0.0,False,10
+"frozen_binary_4q_L1 (entangled binary circuit, exp04)",frozen_binary_4q_L1,8,100000,0.0,False,0.0,False,10
+"frozen_binary_4q_L1 (entangled binary circuit, exp04)",frozen_binary_4q_L1,9,100000,0.0,False,0.0,False,10
+"frozen_binary_4q_L5 (entangled binary circuit, exp04)",frozen_binary_4q_L5,1,100000,1.0,True,1.0,True,10
+"frozen_binary_4q_L5 (entangled binary circuit, exp04)",frozen_binary_4q_L5,10,100000,1.0,True,1.0,True,10
+"frozen_binary_4q_L5 (entangled binary circuit, exp04)",frozen_binary_4q_L5,2,100000,1.0,True,1.0,True,10
+"frozen_binary_4q_L5 (entangled binary circuit, exp04)",frozen_binary_4q_L5,3,100000,1.0,True,0.6666666666666666,False,10
+"frozen_binary_4q_L5 (entangled binary circuit, exp04)",frozen_binary_4q_L5,4,100000,0.0,False,0.0,False,10
+"frozen_binary_4q_L5 (entangled binary circuit, exp04)",frozen_binary_4q_L5,5,100000,1.0,True,1.0,True,10
+"frozen_binary_4q_L5 (entangled binary circuit, exp04)",frozen_binary_4q_L5,6,100000,1.0,True,1.0,True,10
+"frozen_binary_4q_L5 (entangled binary circuit, exp04)",frozen_binary_4q_L5,7,100000,1.0,True,1.0,True,10
+"frozen_binary_4q_L5 (entangled binary circuit, exp04)",frozen_binary_4q_L5,8,100000,1.0,True,0.6666666666666666,False,10
+"frozen_binary_4q_L5 (entangled binary circuit, exp04)",frozen_binary_4q_L5,9,100000,1.0,True,1.0,True,10

@@ -1,0 +1,941 @@
+"""
+Experiment arms.
+
+Three arms, three distinct questions. They are not interchangeable and none
+substitutes for another.
+
+    paper_linear      Faithful replication of the paper's classical control
+                      (section 3.4A / 3.3): no hidden layers, observation
+                      reduced to indices [1,2,3] - cart position discarded, as
+                      in Hsiao et al. Its behaviour under DQN is a RESULT, not
+                      a configuration to be fixed.
+
+    matched_classical [NEW-02] Same design, but the PQC is replaced by a
+                      classical block of equal parameter count. This is the arm
+                      that makes "does the circuit contribute anything under
+                      DQN?" answerable.
+
+    hybrid            The object of study.
+
+    oversized_mlp     Labelled control only. ~11k parameters, ~90x the PQC
+                      budget. It answers "is the environment/algorithm setup
+                      sound at all?" and nothing about the circuit. Never
+                      compare it to the hybrid arm.
+
+FrozenLake arms (exp04) are registered further down, in their own section, with
+the same three roles: the chapter's two hybrid configurations, a
+capacity-matched classical control (`frozen_matched_scalar`), and a labelled
+liveness guard (`frozen_onehot_mlp`).
+"""
+
+from __future__ import annotations
+
+from typing import Any, Dict, Optional
+
+import torch.nn as nn
+
+from .obs_adapters import FROZEN_ONEHOT_ID, FROZEN_SCALAR_ID, register_environments
+
+# Make the adapted FrozenLake ids exist as soon as the package does, so that
+# SafeDQN(env_id=...) and run_grid(env_id=...) work with no runner changes.
+# Cheap: registration touches only gymnasium, no torch, no simplyqrl.
+register_environments()
+
+# Paper's classical control: post-pqc-inference.py :: config_classical
+PAPER_LINEAR: Dict[str, Any] = {
+    "reuse_indices": [1, 2, 3],   # cart position discarded, as in the original paper
+    "n_repeats": 4,
+    "net_arch": [],               # no hidden layers: input > reuse > output
+}
+
+# Fig. 4 of the SimplyQRL chapter: examples/cartpole_dqn.py
+HYBRID_FIG4: Dict[str, Any] = {
+    "circ_type": "skolik",
+    "n_qubits": 8,
+    "n_layers_q": 5,
+    "ent": True,
+    "net_arch": [4],
+    "activation": nn.Identity,
+}
+
+# Labelled control. Upstream default for is_qnet agents (CleanRL's CartPole net).
+OVERSIZED_MLP: Dict[str, Any] = {
+    "net_arch": [120, 84],
+    "activation": nn.ReLU,
+}
+
+# Input policy for the capacity-matched control. The paper's classical arm keeps
+# only indices [1,2,3] (cart position discarded, following Hsiao et al.). That is
+# right for `paper_linear`, a faithful replication - but WRONG for a fair control
+# against the hybrid, which sees all four observations. Cart position is one of
+# the two termination conditions of CartPole (|x| > 2.4), so an arm that cannot
+# see it may fail from blindness rather than from being classical. The fair
+# control therefore uses the full observation. See docs/CORRECTIONS.md#new-02.
+MATCHED_REUSE_INDICES_FAIR = [0, 1, 2, 3]   # full observation, matches the hybrid
+MATCHED_REUSE_INDICES_PAPER = [1, 2, 3]     # paper's amputated set (for ablation)
+
+ARMS = {
+    "paper_linear": ("classic", PAPER_LINEAR),
+    "hybrid_fig4": ("hybrid", HYBRID_FIG4),
+    "oversized_mlp": ("classic", OVERSIZED_MLP),
+}
+
+
+# ---------------------------------------------------------------------------
+# Block-sweep configs: OR and DR (paper blocks 1 and 2).
+#
+# exp01 studied block 3 (ansatz / entanglement). These two build the sweeps for
+# the other two blocks, as minimal variations on HYBRID_FIG4 so that only the
+# studied knob moves. Same simple set-up as exp01 (8 qubits, 60k steps): a first
+# pass for COVERAGE, not the final statistically-robust run. See the standing
+# note in docs/ROADMAP.md - every block sweep must later be re-run at 8-10 seeds
+# (plan "B").
+#
+# OR (Output Reuse, block 1): replicate the PQC readout R times before the
+# linear head. Knob: reuse_repetitions. Paper sweeps R in {4, 8, 16, 32}.
+# DR (Data Reuploading, block 2): circuit depth. Knob: n_layers_q. The paper
+# contrasts embedding philosophies; here we sweep depth on the Skolik template,
+# holding everything else at the Fig. 4 values.
+# ---------------------------------------------------------------------------
+def hybrid_or_config(reuse_repetitions: int) -> Dict[str, Any]:
+    """HYBRID_FIG4 plus Output Reuse of factor `reuse_repetitions`."""
+    cfg = dict(HYBRID_FIG4)
+    cfg["reuse_repetitions"] = int(reuse_repetitions)
+    return cfg
+
+
+def hybrid_dr_config(n_layers_q: int) -> Dict[str, Any]:
+    """HYBRID_FIG4 with circuit depth (Data Reuploading) set to `n_layers_q`."""
+    cfg = dict(HYBRID_FIG4)
+    cfg["n_layers_q"] = int(n_layers_q)
+    return cfg
+
+
+# Paper's sweep points, kept here so experiment scripts refer to them by name.
+OR_REPEATS = [4, 8, 16, 32]     # Output Reuse factors R
+DR_DEPTHS = [1, 2, 5]           # Data Reuploading depths L (Fig. 4 uses 5)
+
+
+# ---------------------------------------------------------------------------
+# [FIX-09 follow-up] Capacity-matched classical control for the OR sweep.
+#
+# exp02's `classical_OR{R}` (transcribed from post-pqc-inference.py::
+# config_classical) is NOT a capacity-matched control: it keeps the paper's
+# amputated observation (reuse_indices=[1,2,3], cart position discarded) and
+# net_arch=[] at every R. Output Reuse repeats the PQC readout R times before
+# the classical head, so the HYBRID side's own parameter budget grows with R
+# (measured: 222/350/606/1118 for R=4/8/16/32 - the 80-param quantum part is
+# fixed, the head is not) while classical_OR stays at 26/50/98/194 - a 6-8x
+# gap that widens with R, not the roughly-matched ~126 of HYBRID_FIG4 alone.
+# Per-seed curves confirm the failure mode is not "less capacity, slower" but
+# the same deadly-triad collapse diagnosed for paper_linear in exp01: 9 of 10
+# classical_OR16 seeds peak early (58-130) then decay to the ~9.6 degenerate
+# floor, with one outlier seed solving CartPole outright (peak 500) - a mean
+# dominated by a single run, which is exactly why IQM exists.
+#
+# This control follows NEW-02's recipe exactly - full observation AND a budget
+# matched to the reference hybrid's MEASURED total - but sized per-R against
+# hybrid_or_config(R), not against the fixed HYBRID_FIG4 reference, since the
+# quantity to match moves with R here. See docs/CORRECTIONS.md#fix-09 and
+# docs/EXPERIMENT-01.md section 5 for why "same total budget" is the honest
+# control (any gap is then attributable to the circuit, not to a parameter
+# advantage).
+# ---------------------------------------------------------------------------
+# NOTE: the matched control is NOT built here. Computing its budget requires
+# constructing the PQC agent (pqc_parameter_budget -> build_agent_for ->
+# gym.make + simplyqrl), which this module must stay importable without (see
+# the module-level note on `_resolve_transform` / transform_fn markers, and
+# tests/conftest.py). It is resolved lazily in `build_arm_config`, exactly
+# like `matched_classical` and `frozen_matched_scalar` below - never at import
+# time.
+for _R in OR_REPEATS:
+    ARMS[f"hybrid_or_r{_R}"] = ("hybrid", hybrid_or_config(_R))
+
+
+# ---------------------------------------------------------------------------
+# [exp08 follow-up] Three gaps flagged in a code review of this registry, none
+# requiring a new circuit template - just missing crossings of knobs that
+# already exist. See docs/CORRECTIONS.md#new-08 for the fuller argument each
+# one is answering.
+#
+# GAP 1 - entanglement was never ablated on exp01/exp02's own arms.
+# `hybrid_fig4` and `hybrid_or_r{R}` are `ent=True` with no `ent=False`
+# counterpart anywhere in THIS project's capacity/OR campaigns (only
+# FrozenLake's `frozen_binary_4q_noent_*` and exp07's replication
+# `paper_skolik_4q_L{2,5}_noent` ablate it). Without this, a positive OR
+# result cannot be attributed to entanglement specifically versus some other
+# property of being a hybrid circuit.
+def hybrid_or_config(reuse_repetitions: int, ent: Optional[bool] = None) -> Dict[str, Any]:
+    """HYBRID_FIG4 plus Output Reuse of factor `reuse_repetitions`.
+
+    `ent=None` (default) keeps HYBRID_FIG4's own ent=True unchanged - existing
+    callers (exp02) are unaffected. `ent=False` builds the noent counterpart
+    used by the arms below.
+    """
+    cfg = dict(HYBRID_FIG4)
+    cfg["reuse_repetitions"] = int(reuse_repetitions)
+    if ent is not None:
+        cfg["ent"] = bool(ent)
+    return cfg
+
+
+ARMS["hybrid_fig4_noent"] = ("hybrid", dict(HYBRID_FIG4, ent=False))
+for _R in OR_REPEATS:
+    ARMS[f"hybrid_or_r{_R}_noent"] = ("hybrid", hybrid_or_config(_R, ent=False))
+
+
+# GAP 2 - DR and OR never cross. exp02 sweeps R at L=5 fixed; exp03 sweeps L
+# with OR off. Reasonable as a design inherited from the reference study, but
+# it means no cell in this project's own campaigns can show an interaction
+# between the two knobs - only their marginal effects. This crosses the two
+# OR REPEATS values against the two DR depths not already covered by L=5
+# (which exp02 already sweeps in full).
+def hybrid_dr_or_config(n_layers_q: int, reuse_repetitions: int) -> Dict[str, Any]:
+    """HYBRID_FIG4 with BOTH circuit depth and Output Reuse set - the
+    crossing neither exp02 (fixed L=5) nor exp03 (OR off) exercises."""
+    cfg = dict(HYBRID_FIG4)
+    cfg["n_layers_q"] = int(n_layers_q)
+    cfg["reuse_repetitions"] = int(reuse_repetitions)
+    return cfg
+
+
+for _L in (1, 2):          # L=5 x R already covered in full by exp02
+    for _R in OR_REPEATS:
+        ARMS[f"hybrid_DR{_L}_OR{_R}"] = ("hybrid", hybrid_dr_or_config(_L, _R))
+
+
+# GAP 3 (FrozenLake Config A Fourier ceiling) is registered further down,
+# right after FROZEN_DR_A is defined - see that section.
+
+
+# ---------------------------------------------------------------------------
+# The dissection paper's OWN configurations, verbatim.
+#
+# WHY THESE EXIST ALONGSIDE HYBRID_FIG4, AND WHY NOTHING IS BEING REPLACED
+# ------------------------------------------------------------------------
+# HYBRID_FIG4 comes from the SimplyQRL *library chapter*'s DQN example
+# (examples/cartpole_dqn.py). The dissection paper's own scripts use different
+# values. Both are legitimate; they answer different questions.
+#
+#                       HYBRID_FIG4        paper (pcq-embeddings.py)
+#     n_qubits          8                  4  (8 only as "augmented tests")
+#     net_arch          [4]                not set  -> [] (no inference net)
+#     activation        nn.Identity        not set
+#     circ_type/ent     skolik / True      skolik / True      (same)
+#     n_layers_q        5                  5                  (same)
+#
+# exp01, exp02 and exp03 all ran on HYBRID_FIG4 and their results stand. They
+# answer: "does the block effect survive the move to DQN, on the configuration
+# the library itself ships for DQN?" That is a real question with a real answer.
+#
+# What they cannot answer is the narrower one: "do OUR numbers line up with
+# THEIR numbers, cell for cell?" - because the cells are not the same cell. The
+# arms below close that gap without touching anything already run. Adding an arm
+# invalidates no previous result; only editing HYBRID_FIG4 would, which is
+# exactly why it is left alone.
+#
+# Each arm names the directory in the paper's results/ tree that it replicates,
+# so `core.baselines.compare_to_paper` can be pointed at the right row without
+# guessing. Sources: src/experiments/{pcq-embeddings,post-pqc-inference,
+# pqc-entanglement}.py in javier-lazaro/qrl-dissection.
+#
+# CAVEAT that travels with every Skolik row here: docs/CORRECTIONS.md#fix-07.
+# On that template the final layer's CZ ring cannot affect a PauliZ readout, so
+# depth L carries only L-1 effective entangling blocks and a depth sweep also
+# sweeps entanglement.
+# ---------------------------------------------------------------------------
+
+def paper_skolik_config(n_qubits: int, n_layers_q: int, ent: bool = True) -> Dict[str, Any]:
+    """pcq-embeddings.py :: config_skolik. Note: no net_arch, no activation."""
+    return {
+        "circ_type": "skolik",
+        "n_qubits": int(n_qubits),
+        "n_layers_q": int(n_layers_q),
+        "ent": bool(ent),
+        "transform_fn": "cartpole_norm",
+    }
+
+
+def paper_salinas_config(n_qubits: int, n_layers_q: int) -> Dict[str, Any]:
+    """pcq-embeddings.py :: config_uqc. The UQC embedding has only three
+    rotations (Rz, Ry, Rz), so the observation is reduced to indices [1,2,3] -
+    the same amputation NEW-02 flags for the classical control, but here it is
+    forced by the circuit rather than chosen."""
+    return {
+        "circ_type": "dr",
+        "n_qubits": int(n_qubits),
+        "emb_indices": [1, 2, 3],
+        "n_layers_q": int(n_layers_q),
+        "ent": True,                  # no effect at 1 qubit; the paper says so too
+        "transform_fn": "cartpole_norm",
+    }
+
+
+def paper_hsiao_or_config(reuse_repetitions: int, ent: bool = False) -> Dict[str, Any]:
+    """post-pqc-inference.py :: config_hybrid. Hsiao's default is ent=False."""
+    return {
+        "circ_type": "hsiao",
+        "n_qubits": 4,
+        "emb_indices": [1, 2, 3],
+        "reuse_repetitions": int(reuse_repetitions),
+        "n_layers_q": 1,
+        "ent": bool(ent),
+        "transform_fn": "arctan",
+    }
+
+
+def paper_classical_or_config(n_repeats: int) -> Dict[str, Any]:
+    """post-pqc-inference.py :: config_classical. Identical in shape to
+    PAPER_LINEAR, which is that same config at n_repeats=4."""
+    return {"reuse_indices": [1, 2, 3], "n_repeats": int(n_repeats), "net_arch": []}
+
+
+PAPER_DEPTHS = [1, 2, 5]        # their DR sweep
+PAPER_REUSE = [4, 8, 16, 32]    # their OR sweep
+
+# arm name -> directory name under the paper's results/ tree
+PAPER_ARM_TO_RESULTS: Dict[str, str] = {}
+
+for _nq in (4, 8):
+    for _L in PAPER_DEPTHS:
+        _a = f"paper_skolik_{_nq}q_L{_L}"
+        ARMS[_a] = ("hybrid", paper_skolik_config(_nq, _L))
+        PAPER_ARM_TO_RESULTS[_a] = f"Skolik_{_nq}Q_L{_L}"
+for _nq in (1, 2):
+    for _L in PAPER_DEPTHS:
+        _a = f"paper_salinas_{_nq}q_L{_L}"
+        ARMS[_a] = ("hybrid", paper_salinas_config(_nq, _L))
+        PAPER_ARM_TO_RESULTS[_a] = f"Salinas_{_nq}Q_L{_L}"
+for _R in PAPER_REUSE:
+    _a = f"paper_hsiao_or_r{_R}"
+    ARMS[_a] = ("hybrid", paper_hsiao_or_config(_R))
+    PAPER_ARM_TO_RESULTS[_a] = f"Quantum_r{_R}"
+    _c = f"paper_classical_or_r{_R}"
+    ARMS[_c] = ("classic", paper_classical_or_config(_R))
+    PAPER_ARM_TO_RESULTS[_c] = f"Classical_r{_R}"
+# Entanglement block. The L1 Skolik pair is deliberately absent: FIX-07 makes it
+# a comparison of a circuit against itself, so shipping it as an arm would invite
+# someone to run a cell that cannot produce a difference.
+for _L in (2, 5):
+    _a = f"paper_skolik_{4}q_L{_L}_noent"
+    ARMS[_a] = ("hybrid", paper_skolik_config(4, _L, ent=False))
+    PAPER_ARM_TO_RESULTS[_a] = f"Skolik_DR_L{_L}_Unentangled"
+for _R in (4, 16):
+    _a = f"paper_hsiao_or_r{_R}_ent"
+    ARMS[_a] = ("hybrid", paper_hsiao_or_config(_R, ent=True))
+    PAPER_ARM_TO_RESULTS[_a] = f"Hsiao_OR_r{_R}_Entangled"
+
+
+# ---------------------------------------------------------------------------
+# FrozenLake arms (exp04). Block 2: observation embedding and Data Reuploading.
+#
+# ATTRIBUTION. These configurations come from the SimplyQRL *library chapter*,
+# Experiment 3 - NOT from the dissection paper (arXiv:2511.17112), which is
+# CartPole-only. The chapter's FrozenLake run is a single-seed illustrative
+# demonstration with no classical control and no block-level conclusion. It is a
+# sanity anchor, not a baseline to transfer from. See docs/EXPERIMENT-04.md.
+#
+#     Config A - scalar-to-phase   n_qubits = 1, n_layers_q in {1, 5, 10, 15}
+#     Config B - binary-basis      n_qubits = 4, n_layers_q in {1, 5}
+#
+# Both use `circ_type="skolik"`, whose template re-uploads the input once per
+# layer - so `n_layers_q` IS the Data Reuploading depth and this sweep is a DR
+# sweep, directly comparable to exp03 on CartPole.
+#
+# `ent` is forced False at one qubit: the circular CZ would be CZ(wires=[0, 0]),
+# a control equal to its target. Config A is therefore *necessarily*
+# unentangled, which means Config A vs Config B confounds embedding with
+# entanglement. The `noent` variants of Config B exist to separate them; the
+# chapter does not flag the confound.
+#
+# `transform_fn` is stored as a MARKER STRING here and resolved to a real object
+# in build_arm_config. That keeps this module importable without simplyqrl (the
+# light tests depend on it) and keeps ARMS printable and serialisable.
+# ---------------------------------------------------------------------------
+FROZEN_GRID = "4x4"
+
+FROZEN_TRANSFORMS = {
+    "frozen_scalar": "FrozenNormalizationTransformer",   # state -> one angle
+    "frozen_binary": "FrozenBasisToAngleTransformer",    # state -> 4 bits -> {0, pi}
+    "cartpole_norm": "CartPoleNormalizationTransformer", # paper's Skolik/Salinas arms
+    "arctan": "ArctanTransformer",                       # paper's Hsiao arms
+}
+
+
+def _resolve_transform(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Turn a `transform_fn` marker string into the upstream transformer object.
+
+    No-op for configs that already hold a callable, so CartPole arms and any
+    user-supplied transform pass through untouched.
+    """
+    marker = cfg.get("transform_fn")
+    if not isinstance(marker, str):
+        return cfg
+    if marker not in FROZEN_TRANSFORMS:
+        raise KeyError(
+            f"unknown transform marker {marker!r}. Known: {sorted(FROZEN_TRANSFORMS)}"
+        )
+    import simplyqrl.transformations as _t
+    klass = getattr(_t, FROZEN_TRANSFORMS[marker])
+    # The Frozen* transformers need the grid size; the CartPole ones take no
+    # argument. NOTE: the chapter's text writes the Frozen ones with no argument
+    # either, which does not run. docs/CORRECTIONS.md#fix-06.
+    cfg["transform_fn"] = klass(FROZEN_GRID) if marker.startswith("frozen_") else klass()
+    return cfg
+
+
+def frozen_scalar_config(n_layers_q: int) -> Dict[str, Any]:
+    """Chapter Config A: one qubit, discrete state mapped to a single angle."""
+    return {
+        "circ_type": "skolik",
+        "n_qubits": 1,
+        "n_layers_q": int(n_layers_q),
+        "ent": False,                 # forced: CZ(0,0) is invalid at one qubit
+        "transform_fn": "frozen_scalar",
+        "net_arch": [],               # chapter comments the inference net out
+    }
+
+
+def frozen_binary_config(n_layers_q: int, ent: bool = True) -> Dict[str, Any]:
+    """Chapter Config B: four qubits, state as a binary basis vector."""
+    return {
+        "circ_type": "skolik",
+        "n_qubits": 4,
+        "n_layers_q": int(n_layers_q),
+        "ent": bool(ent),
+        "transform_fn": "frozen_binary",
+        "net_arch": [],
+    }
+
+
+# Liveness guard. One-hot state, deliberately oversized. NOT a fair comparison
+# and not meant to be: if this arm does not solve FrozenLake the regime is dead
+# and no hybrid number measured in it is interpretable. Run it before stage 2.
+FROZEN_ONEHOT_MLP: Dict[str, Any] = {"net_arch": [64, 64], "activation": nn.ReLU}
+
+# Separates "the scalar encoding is the problem" from "the budget is".
+FROZEN_SCALAR_MLP_LARGE: Dict[str, Any] = {"net_arch": [64, 64], "activation": nn.ReLU}
+
+# The chapter's own sweep points, named so experiment scripts cannot drift from
+# the published configuration by accident.
+FROZEN_DR_A = [1, 5, 10, 15]      # Config A depths
+FROZEN_DR_B = [1, 5]              # Config B depths
+
+for _L in FROZEN_DR_A:
+    ARMS[f"frozen_scalar_1q_L{_L}"] = ("hybrid", frozen_scalar_config(_L))
+for _L in FROZEN_DR_B:
+    ARMS[f"frozen_binary_4q_L{_L}"] = ("hybrid", frozen_binary_config(_L))
+    ARMS[f"frozen_binary_4q_noent_L{_L}"] = ("hybrid", frozen_binary_config(_L, ent=False))
+ARMS["frozen_onehot_mlp"] = ("classic", FROZEN_ONEHOT_MLP)
+ARMS["frozen_scalar_mlp_large"] = ("classic", FROZEN_SCALAR_MLP_LARGE)
+
+# [exp08 follow-up, GAP 3] The additive Fourier ceiling only covered Config B
+# (`frozen_binary_4q_fourier_ceiling`, below). Config A (circ_type='skolik',
+# n_qubits=1) passes `check_additive_embedding` exactly as CartPole's
+# `hybrid_fig4` does - not blocked, just never registered. Unlike Config B's
+# two-point domain, Config A's embedding is continuous, so depth genuinely
+# changes the accessible frequency class (no single L bounds every depth) -
+# one ceiling per depth actually swept, matching the precedent
+# `cartpole_fourier_ceiling_L5` set below (bound the SPECIFIC circuit
+# compared, not the deepest one in the sweep).
+for _L in FROZEN_DR_A:
+    ARMS[f"frozen_scalar_1q_fourier_ceiling_L{_L}"] = (
+        "fourier_additive",
+        {"n_qubits": 1, "n_layers_q": _L, "circ_type": "skolik",
+         "transform_fn": "frozen_scalar"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# [NEW-05 / NEW-06] Classical stand-ins: SU(2) emulator equivalence checks and
+# the additive Fourier ceiling. Added, not substituted for anything above -
+# see core/su2_emulator.py and core/fourier_ceiling.py for what each is and is
+# not, and docs/CORRECTIONS.md#new-05 / #new-06 for the full argument.
+#
+# NEW-05 arms mirror an EXISTING unentangled hybrid arm's shape exactly
+# (n_qubits, n_layers_q, transform_fn), so training this arm and the real PQC
+# arm on the same seed is a distribution-level equivalence check, not a new
+# experimental condition:
+#   su2_cartpole_L5           <-> HYBRID_FIG4 with ent forced False (8q, L5)
+#   su2_frozen_scalar_1q_L5   <-> frozen_scalar_1q_L5   (1q, L5, already ent=False)
+#   su2_frozen_binary_4q_L1   <-> frozen_binary_4q_noent_L1 (4q, L1, ent=False)
+#   su2_frozen_binary_4q_L5   <-> frozen_binary_4q_noent_L5 (4q, L5, ent=False)
+# `SU2HybridAgent` raises on ent=True by construction (see that class), so
+# there is no su2 arm mirroring an ENTANGLED hybrid - that pair cannot exist.
+#
+# NEW-06 arms are the classical ceiling on the corresponding real circuit's
+# accessible hypothesis class, NOT capacity-matched to it (see
+# core/fourier_ceiling.py's "Open sizing question" note - both parameter
+# counts are meant to be reported side by side, not equalised):
+#   cartpole_fourier_ceiling_L5      <-> HYBRID_FIG4 (8q, L5, circ_type=skolik,
+#                                        additive - check_additive_embedding
+#                                        passes)
+#   frozen_binary_4q_fourier_ceiling <-> frozen_binary_4q_{noent_,}L{1,5} - NO
+#                                        L suffix on purpose: `linear_on_bits`
+#                                        is the FrozenLake Config B degenerate
+#                                        case, provably L-independent
+#                                        (core/fourier_ceiling.py's
+#                                        "FrozenLake Config B degeneracy"
+#                                        section) - one arm bounds every L.
+# ---------------------------------------------------------------------------
+_SU2_CARTPOLE_L5 = dict(HYBRID_FIG4)
+_SU2_CARTPOLE_L5["ent"] = False
+ARMS["su2_cartpole_L5"] = ("su2", _SU2_CARTPOLE_L5)
+ARMS["su2_frozen_scalar_1q_L5"] = ("su2", frozen_scalar_config(5))
+ARMS["su2_frozen_binary_4q_L1"] = ("su2", frozen_binary_config(1, ent=False))
+ARMS["su2_frozen_binary_4q_L5"] = ("su2", frozen_binary_config(5, ent=False))
+
+# [exp09] EXPLORATORY EXTENSION - not part of the thesis core (docs/EXPERIMENT-09.md).
+# Output Reuse crossed with the FrozenLake sweeps, on the SU(2) emulator
+# (unentangled circuits only - an entangled arm cannot exist in this family).
+# R = 1 means "no Output Reuse" and keeps the plain name; R > 1 appends _OR{R}.
+# Arms that were already registered above are left untouched.
+EXP09_FROZEN_REUSE = [1, 4, 16]
+EXP09_CONFIG_A_DEPTHS = [1, 5, 10, 15]
+EXP09_CONFIG_B_DEPTHS = [1, 2, 3, 5]
+
+
+def su2_frozen_arm_name(config: str, n_layers_q: int, reuse: int) -> str:
+    """`config` is 'scalar_1q' (Config A) or 'binary_4q' (Config B)."""
+    base = f"su2_frozen_{config}_L{int(n_layers_q)}"
+    return base if int(reuse) == 1 else f"{base}_OR{int(reuse)}"
+
+
+for _R in EXP09_FROZEN_REUSE:
+    for _L in EXP09_CONFIG_A_DEPTHS:
+        _cfg = frozen_scalar_config(_L)
+        if _R > 1:
+            _cfg["reuse_repetitions"] = _R
+        ARMS.setdefault(su2_frozen_arm_name("scalar_1q", _L, _R), ("su2", _cfg))
+    for _L in EXP09_CONFIG_B_DEPTHS:
+        _cfg = frozen_binary_config(_L, ent=False)
+        if _R > 1:
+            _cfg["reuse_repetitions"] = _R
+        ARMS.setdefault(su2_frozen_arm_name("binary_4q", _L, _R), ("su2", _cfg))
+
+
+# [exp09, wave 2] EXPLORATORY EXTENSION - not part of the thesis core (docs/EXPERIMENT-09.md).
+# EXP09_WAVE2: arms for the statevector simulator (core/statevector.py, NEW-09), which
+# represents ENTANGLED circuits, and for extra emulator axes. Nothing here replaces an
+# arm of exp01-exp08: where a real-circuit arm exists, the sv/su2 arm is a replica run
+# under its own name.
+EXP09_CARTPOLE_REUSE = [1, 4, 8, 16, 32]
+
+
+def sv_frozen_arm_name(n_layers_q: int, reuse: int) -> str:
+    base = f"sv_frozen_binary_4q_L{int(n_layers_q)}"
+    return base if int(reuse) == 1 else f"{base}_OR{int(reuse)}"
+
+
+def cartpole_replica_name(kind: str, reuse: int, suffix: str = "", n_layers: int = 5) -> str:
+    """kind: 'sv' (entangled, statevector) or 'su2' (unentangled emulator)."""
+    base = f"{kind}_cartpole_L{int(n_layers)}"
+    base = base if int(reuse) == 1 else f"{base}_OR{int(reuse)}"
+    return base + suffix
+
+
+# Entangled FrozenLake Config B on the statevector simulator (ent=True).
+for _R in EXP09_FROZEN_REUSE:
+    for _L in EXP09_CONFIG_B_DEPTHS:
+        _cfg = frozen_binary_config(_L, ent=True)
+        if _R > 1:
+            _cfg["reuse_repetitions"] = _R
+        ARMS.setdefault(sv_frozen_arm_name(_L, _R), ("sv", _cfg))
+
+# CartPole replicas of HYBRID_FIG4 (+ Output Reuse): entangled on the statevector
+# simulator, unentangled on the SU(2) emulator.
+for _R in EXP09_CARTPOLE_REUSE:
+    for _kind, _ent in (("sv", True), ("su2", False)):
+        _cfg = dict(HYBRID_FIG4, ent=_ent)
+        if _R > 1:
+            _cfg["reuse_repetitions"] = _R
+        ARMS.setdefault(cartpole_replica_name(_kind, _R), (_kind, _cfg))
+
+# FIX-02 question: does the output scale (never requested by any arm so far) matter on
+# CartPole, where Q must reach ~100 and PauliZ expectations live in [-1, 1]?
+for _R in (1, 16):
+    _cfg = dict(HYBRID_FIG4, ent=False, use_output_scaling=True)
+    if _R > 1:
+        _cfg["reuse_repetitions"] = _R
+    ARMS.setdefault(cartpole_replica_name("su2", _R, "_outscale"), ("su2", _cfg))
+
+# FrozenLake axes never varied, one at a time from the baseline, on the dead arms.
+EXP09_H_BASES = {
+    "su2_frozen_scalar_1q_L5": frozen_scalar_config(5),
+    "su2_frozen_scalar_1q_L10": frozen_scalar_config(10),
+    "su2_frozen_binary_4q_L5": frozen_binary_config(5, ent=False),
+}
+EXP09_H_VARIANTS = {
+    "head16": {"net_arch": [16], "activation": nn.ReLU},     # a real hidden layer in the head
+    "init0.1": {"q_init_std": 0.1},                          # small N(0, 0.1) quantum weights
+    "init0.5": {"q_init_std": 0.5},
+    "tis": {"trainable_input_scale": True},                  # trainable per-layer input scale
+}
+for _base, _cfg0 in EXP09_H_BASES.items():
+    for _vname, _over in EXP09_H_VARIANTS.items():
+        ARMS.setdefault(f"{_base}__{_vname}", ("su2", dict(_cfg0, **_over)))
+
+
+# EXP09_BATTERY: validation battery of the simulators against real runs that already exist.
+# Each arm below replicates a REAL arm of exp01-exp08 under its own name (docs/EXPERIMENT-09.md,
+# section 7). Exploratory; not for the final work (docs/SIMULATED-RESULTS-POLICY.md).
+EXP09_BATTERY_DEPTHS = [1, 2]
+for _L in EXP09_BATTERY_DEPTHS:
+    for _R in EXP09_CARTPOLE_REUSE:                     # entangled, vs exp03 DR{L} and exp08 DR{L}_OR{R}
+        _cfg = dict(HYBRID_FIG4, n_layers_q=_L, ent=True)
+        if _R > 1:
+            _cfg["reuse_repetitions"] = _R
+        ARMS.setdefault(cartpole_replica_name("sv", _R, n_layers=_L), ("sv", _cfg))
+    # unentangled twin, vs exp03b hybrid_DR{L}_noent
+    ARMS.setdefault(cartpole_replica_name("su2", 1, n_layers=_L),
+                    ("su2", dict(HYBRID_FIG4, n_layers_q=_L, ent=False)))
+# the same plain circuit through BOTH simulators with ent=False: they must agree with each other
+ARMS.setdefault("sv_cartpole_L5_noent", ("sv", dict(HYBRID_FIG4, ent=False)))
+for _L in (1, 5):
+    ARMS.setdefault(f"sv_frozen_binary_4q_noent_L{_L}", ("sv", frozen_binary_config(_L, ent=False)))
+# exp07's literal Skolik arms (CartPole normalisation, linear head, 4 or 8 qubits)
+for _nq in (4, 8):
+    for _L in (1, 2, 5):
+        ARMS.setdefault(f"sv_paper_skolik_{_nq}q_L{_L}", ("sv", paper_skolik_config(_nq, _L, ent=True)))
+for _L in (2, 5):
+    ARMS.setdefault(f"su2_paper_skolik_4q_L{_L}_noent", ("su2", paper_skolik_config(4, _L, ent=False)))
+
+# [exp10] EXPLORATORY - 100-seed extension on the simulators (docs/EXPERIMENT-10-X100.md). Exact
+# ent=False twins on the statevector simulator, so that both sides of an entanglement contrast
+# go through the SAME tool: sv_cartpole_L5_OR{R}_noent is the twin of su2_cartpole_L5_OR{R}
+# (same config; the statevector simulator accepts ent=False), and sv_cartpole_L{1,2}_noent of
+# su2_cartpole_L{1,2}. Not for the final work (docs/SIMULATED-RESULTS-POLICY.md).
+for _R in EXP09_CARTPOLE_REUSE:
+    if _R == 1:
+        continue                                        # sv_cartpole_L5_noent already exists
+    ARMS.setdefault(cartpole_replica_name("sv", _R, "_noent"),
+                    ("sv", dict(HYBRID_FIG4, ent=False, reuse_repetitions=_R)))
+for _L in EXP09_BATTERY_DEPTHS:
+    ARMS.setdefault(cartpole_replica_name("sv", 1, "_noent", n_layers=_L),
+                    ("sv", dict(HYBRID_FIG4, n_layers_q=_L, ent=False)))
+
+ARMS["cartpole_fourier_ceiling_L5"] = (
+    "fourier_additive",
+    {"n_qubits": HYBRID_FIG4["n_qubits"], "n_layers_q": HYBRID_FIG4["n_layers_q"],
+     "circ_type": "skolik"},
+)
+ARMS["frozen_binary_4q_fourier_ceiling"] = (
+    "linear_on_bits",
+    {"n_qubits": 4, "transform_fn": "frozen_binary"},
+)
+
+# Which registered env id each arm expects. Arms see the scalar observation
+# unless they are the one-hot reference.
+FROZEN_ARM_ENV = {a: (FROZEN_ONEHOT_ID if a == "frozen_onehot_mlp" else FROZEN_SCALAR_ID)
+                  for a in ARMS if a.startswith("frozen_")}
+FROZEN_ARM_ENV["frozen_matched_scalar"] = FROZEN_SCALAR_ID   # computed, not in ARMS
+
+# Reference hybrid the matched classical control is sized against.
+FROZEN_MATCHED_REFERENCE = "frozen_scalar_1q_L5"
+
+
+# ---------------------------------------------------------------------------
+# Environments. The second axis the study grows along (the first is algorithm).
+#
+# The paper uses CartPole-v1 only. As experiments extend to Acrobot,
+# LunarLander, etc., register them here with the observation preprocessing each
+# one needs, so that experiment scripts refer to environments by name and the
+# preprocessing stays in one place rather than scattered across scripts.
+# ---------------------------------------------------------------------------
+ENVIRONMENTS: Dict[str, Dict[str, Any]] = {
+    "cartpole": {
+        "env_id": "CartPole-v1",
+        "obs_dim": 4,
+        "n_actions": 2,
+        # index set the paper's classical arm keeps (cart position discarded)
+        "paper_reuse_indices": [1, 2, 3],
+    },
+    "frozenlake": {
+        # The adapted id, not "FrozenLake-v1": upstream's DQN cannot consume a
+        # Discrete observation space at all. See docs/CORRECTIONS.md#fix-05.
+        "env_id": FROZEN_SCALAR_ID,
+        "raw_env_id": "FrozenLake-v1",
+        "env_kwargs": {"map_name": "4x4", "is_slippery": False},
+        "obs_dim": 1,
+        "n_actions": 4,
+        "onehot_env_id": FROZEN_ONEHOT_ID,   # classical reference arm only
+        "max_episode_steps": 100,
+    },
+    # "acrobot":     {"env_id": "Acrobot-v1",     "obs_dim": 6, "n_actions": 3, ...},
+    # "lunarlander": {"env_id": "LunarLander-v3", "obs_dim": 8, "n_actions": 4, ...},
+}
+
+
+def get_environment(name: str) -> Dict[str, Any]:
+    if name not in ENVIRONMENTS:
+        raise KeyError(f"unknown environment {name!r}. Known: {sorted(ENVIRONMENTS)}")
+    return dict(ENVIRONMENTS[name])
+
+
+# ---------------------------------------------------------------------------
+# [exp12] The classical twin of the hybrid. Real CartPole, classical arms. See core/classical_twin.py and
+# docs/EXPERIMENT-12-CLASSICAL-TWIN.md.
+#
+# The twin is the hybrid_OR{R} network with ONLY the circuit replaced by a classical extractor
+# (Linear 4->6, ReLU, Linear 6->8, [Tanh]) with the same 8 outputs: same OutputReuse(R), same head
+# Linear(8R -> 4) -> Identity -> Linear(4 -> 2). Its config is the config of hybrid_OR{R} plus two keys, so the
+# head is defined in one place only. R = 1 has no Output Reuse (as hybrid_fig4).
+#   classical_twin_r{R}            final Tanh: outputs bounded in [-1, 1] like the circuit's <Z_i>
+#   classical_twin_unbounded_r{R}  no final Tanh: the range control
+# Names are exact keys of ARMS (no prefix matching): "classical_twin_r" cannot capture "classical_twin_unbounded_r".
+# ---------------------------------------------------------------------------
+TWIN_REPEATS = [1, 4, 8, 16, 32]
+for _R in TWIN_REPEATS:
+    ARMS[f"classical_twin_r{_R}"] = ("classical_twin", dict(hybrid_or_config(_R), twin_hidden=6, twin_bounded=True))
+    ARMS[f"classical_twin_unbounded_r{_R}"] = ("classical_twin",
+                                                dict(hybrid_or_config(_R), twin_hidden=6, twin_bounded=False))
+
+
+# [exp13] Output Reuse against the learning rate of the head (docs/EXPERIMENT-13-OR-VS-LR.md; core/lr_equivalence.py).
+# Two agents: the classical twin of exp12 (T, "classical_twin_*") and the entangled hybrid on the batched statevector
+# emulator (H, "hybrid_emu_*", agent_type "sv": SIMULATED, see core/provenance.py). Per agent, exact ARMS keys:
+#   {P}_reuse_r{R}        R in {1,4,8,16,32}   the model with reuse R (R = 1 is the common base)
+#   {P}_collapsed_r{R}    R in {4,8,16,32}     reuse-R init, head replaced by V0 = sum_r W_r0, lr(head.weight) x R
+#   {P}_gradx{R}          R in {8,32}          R = 1, gradient of head.weight x R, lr untouched
+#   {P}_headlr_x{k}       k in {2,...,128}     R = 1 (default init), lr(head.weight) x k
+#   {P}_globallr_x{k}     k in {0.5,2,4,8}     R = 1, lr of ALL parameters x k   ("0.5" is written "0p5")
+def _exp13_base(prefix, R):
+    if prefix == "classical_twin":
+        return "classical_twin", dict(hybrid_or_config(R), twin_hidden=6, twin_bounded=True)
+    cfg = dict(HYBRID_FIG4, ent=True)
+    if R > 1:
+        cfg["reuse_repetitions"] = int(R)
+    return "sv", cfg
+
+
+def _exp13_register():
+    from .lr_equivalence import (KS_GLOBAL, KS_HEAD, PREFIX_HYBRID, PREFIX_TWIN, RS_COLLAPSED, RS_EQUIV, RS_GRAD, kname)
+    for pre in (PREFIX_TWIN, PREFIX_HYBRID):
+        for R in RS_EQUIV:
+            at, cfg = _exp13_base(pre, R)
+            ARMS[f"{pre}_reuse_r{R}"] = (at, dict(cfg, lr13_diag=True))
+        for R in RS_COLLAPSED:
+            at, cfg = _exp13_base(pre, R)
+            ARMS[f"{pre}_collapsed_r{R}"] = (at, dict(cfg, lr13_diag=True, lr13_collapse_R=R, lr13_head_mult=float(R)))
+        at, cfg1 = _exp13_base(pre, 1)
+        for R in RS_GRAD:
+            ARMS[f"{pre}_gradx{R}"] = (at, dict(cfg1, lr13_diag=True, lr13_grad_mult=float(R)))
+        for k in KS_HEAD:
+            ARMS[f"{pre}_headlr_x{kname(k)}"] = (at, dict(cfg1, lr13_diag=True, lr13_head_mult=float(k)))
+        for k in KS_GLOBAL:
+            ARMS[f"{pre}_globallr_x{kname(k)}"] = (at, dict(cfg1, lr13_diag=True, lr13_global_mult=float(k)))
+
+
+_exp13_register()
+
+
+def _exp13_efg_register():
+    """[exp13 blocks E, F, G] classical controls that contain Output Reuse, and their unreplicated twins
+    (core/lr_efg.py). Exact ARMS keys; none is simulated."""
+    from . import lr_efg
+    for name, entry in lr_efg.arm_definitions(HYBRID_FIG4, MATCHED_REUSE_INDICES_FAIR).items():
+        ARMS[name] = entry
+
+
+_exp13_efg_register()
+
+
+def build_arm_config(
+    arm: str,
+    hybrid_reference: str = "hybrid_fig4",
+    activation: type = nn.ReLU,
+    env_id: str = "CartPole-v1",
+    match_to: str = "total",
+    observation: str = "full",
+    **overrides: Any,
+):
+    """Return (agent_type, agent_config) for an arm name.
+
+    `matched_classical` is computed, not hard-coded: the hidden width is derived
+    from the reference hybrid arm's measured parameter budget, so it stays
+    correct if the circuit changes.
+
+    match_to
+    --------
+    "total"   (default) match the FULL hybrid parameter count (PQC + classical
+              head). This is the honest control: same total budget as the model
+              it is meant to rival, so any gap is attributable to the circuit
+              rather than to a parameter-count advantage. The hybrid arm keeps
+              the paper's exact circuit unchanged - only this classical control
+              is resized.
+    "quantum" match only the PQC weight count. Leaves the classical arm with
+              MORE total parameters than the hybrid (it adds its own head on
+              top), which biases the comparison toward the classical arm.
+              Kept for completeness; not the default.
+
+    observation
+    -----------
+    "full"  (default) the matched control sees all four observations, exactly
+            like the hybrid. This is the fair control: same information, same
+            budget, only the circuit differs.
+    "paper" reproduce the paper's amputated input (cart position discarded).
+            Use ONLY for the ablation that measures how much the amputation
+            itself costs - not for the main circuit-vs-classical comparison.
+    """
+    from .capacity import match_hidden_width, pqc_parameter_budget
+
+    if arm == "matched_classical":
+        ref_type, ref_cfg = ARMS[hybrid_reference]
+        if ref_type != "hybrid":
+            raise ValueError("hybrid_reference must name a hybrid arm")
+        budgets = pqc_parameter_budget(ref_cfg, env_id=env_id)
+        if match_to == "total":
+            budget = budgets["total"]
+        elif match_to == "quantum":
+            budget = budgets["quantum"]
+        else:
+            raise ValueError(f"match_to must be 'total' or 'quantum', got {match_to!r}")
+        if observation == "full":
+            indices = MATCHED_REUSE_INDICES_FAIR
+        elif observation == "paper":
+            indices = MATCHED_REUSE_INDICES_PAPER
+        else:
+            raise ValueError(f"observation must be 'full' or 'paper', got {observation!r}")
+        n_repeats = PAPER_LINEAR["n_repeats"]
+        # SelectiveOutputReuse replicates the (reduced) observation n_repeats
+        # times before the network, so the first Linear sees len(indices) *
+        # n_repeats features, not len(indices). Sizing against the wrong in_dim
+        # made the matched arm ~2.5x too big. See docs/CORRECTIONS.md#new-02.
+        in_dim = len(indices) * n_repeats
+        width, spent = match_hidden_width(budget, in_dim=in_dim, out_dim=2)
+        cfg = {
+            "reuse_indices": list(indices),
+            "n_repeats": n_repeats,
+            "net_arch": [width],
+            "activation": activation,
+            "_matched_to": hybrid_reference,
+            "_match_target": match_to,
+            "_observation": observation,
+            "_budget": budget,
+            "_hybrid_total": budgets["total"],
+            "_hybrid_quantum": budgets["quantum"],
+            "_spent_params": spent,
+        }
+        cfg.update(overrides)
+        return "classic", cfg
+
+    if arm.startswith("classical_or_matched_rep_r"):
+        # [exp11] The replication control. classical_or_matched_r{R} (below) matches the hybrid's
+        # budget but keeps its replication fixed at PAPER_LINEAR["n_repeats"] (4), so it cannot show
+        # whether replication helps a classical net that can learn. This arm replicates the input R
+        # times (the same R as hybrid_OR{R}) AND has a ReLU hidden layer AND sees the full
+        # observation AND matches the hybrid's MEASURED total. Because the replicated input makes
+        # the first layer consume more of the budget, its hidden width is smaller than that of
+        # classical_or_matched_r{R}; the width is derived here, never hard-coded.
+        # Must stay BEFORE the classical_or_matched_r branch: that prefix also matches this name.
+        try:
+            reps = int(arm.rsplit("_r", 1)[1])
+        except (IndexError, ValueError) as exc:
+            raise ValueError(
+                f"{arm!r}: expected 'classical_or_matched_rep_r<R>', e.g. "
+                "'classical_or_matched_rep_r16'"
+            ) from exc
+        budgets = pqc_parameter_budget(hybrid_or_config(reps), env_id=env_id)
+        budget = budgets["total"] if match_to == "total" else budgets["quantum"]
+        in_dim = len(MATCHED_REUSE_INDICES_FAIR) * reps
+        width, spent = match_hidden_width(budget, in_dim=in_dim, out_dim=2)
+        cfg = {
+            "reuse_indices": list(MATCHED_REUSE_INDICES_FAIR),
+            "n_repeats": reps,
+            "net_arch": [width],
+            "activation": activation,
+            "_matched_to": f"hybrid_or_r{reps}",
+            "_match_target": match_to,
+            "_budget": budget,
+            "_hybrid_total": budgets["total"],
+            "_hybrid_quantum": budgets["quantum"],
+            "_spent_params": spent,
+        }
+        cfg.update(overrides)
+        return "classic", cfg
+
+    if arm.startswith("classical_or_matched_r"):
+        if arm.startswith("classical_or_matched_rep"):
+            raise ValueError(f"{arm!r}: not an arm; the replication control is "
+                             "'classical_or_matched_rep_r<R>'")
+        # [FIX-09 follow-up] exp02's classical_OR{R} is not capacity-matched
+        # (see docs/CORRECTIONS.md#fix-09): it keeps the paper's amputated,
+        # zero-hidden-layer design at every R, while OR grows the HYBRID
+        # side's own head with R (measured total: 222/350/606/1118 for
+        # R=4/8/16/32; classical_OR carries only 26/50/98/194). This arm
+        # matches NEW-02's recipe - full observation, budget matched to the
+        # reference hybrid's MEASURED total - but resolved per-R against
+        # hybrid_or_config(R), never against the fixed HYBRID_FIG4 alone,
+        # since the quantity to match moves with R here.
+        try:
+            reps = int(arm.rsplit("_r", 1)[1])
+        except (IndexError, ValueError) as exc:
+            raise ValueError(
+                f"{arm!r}: expected 'classical_or_matched_r<R>', e.g. "
+                "'classical_or_matched_r16'"
+            ) from exc
+        budgets = pqc_parameter_budget(hybrid_or_config(reps), env_id=env_id)
+        budget = budgets["total"] if match_to == "total" else budgets["quantum"]
+        n_repeats = PAPER_LINEAR["n_repeats"]
+        in_dim = len(MATCHED_REUSE_INDICES_FAIR) * n_repeats
+        width, spent = match_hidden_width(budget, in_dim=in_dim, out_dim=2)
+        cfg = {
+            "reuse_indices": list(MATCHED_REUSE_INDICES_FAIR),
+            "n_repeats": n_repeats,
+            "net_arch": [width],
+            "activation": activation,
+            "_matched_to": f"hybrid_or_r{reps}",
+            "_match_target": match_to,
+            "_budget": budget,
+            "_hybrid_total": budgets["total"],
+            "_hybrid_quantum": budgets["quantum"],
+            "_spent_params": spent,
+        }
+        cfg.update(overrides)
+        return "classic", cfg
+
+    if arm == "frozen_matched_scalar":
+        # [exp04] The FrozenLake counterpart of matched_classical, kept as its
+        # own branch because the geometry differs on every axis: the control
+        # sees a 1-D scalar rather than a reused 4-vector, and FrozenLake has
+        # four actions rather than two. Same principle, though - the width is
+        # derived from the reference hybrid's measured budget, never hard-coded,
+        # so it stays correct if the circuit changes.
+        ref = hybrid_reference if hybrid_reference.startswith("frozen_") \
+            else FROZEN_MATCHED_REFERENCE
+        ref_type, ref_cfg = ARMS[ref]
+        if ref_type != "hybrid":
+            raise ValueError("hybrid_reference must name a hybrid arm")
+        budgets = pqc_parameter_budget(_resolve_transform(dict(ref_cfg)),
+                                       env_id=FROZEN_SCALAR_ID)
+        budget = budgets["total"] if match_to == "total" else budgets["quantum"]
+        # in_dim 1: the scalar state. out_dim 4: FrozenLake's action space.
+        width, spent = match_hidden_width(budget, in_dim=1, out_dim=4)
+        # match_hidden_width returns the CLOSEST width, which at these tiny
+        # budgets can land under the hybrid (18 params -> width 2 -> 16). Round
+        # up instead: a control that loses while carrying fewer parameters
+        # proves nothing, so the conservative direction is to give it slightly
+        # more. Costs at most one extra hidden unit.
+        while spent < budget and width < 4096:
+            width += 1
+            spent = 1 * width + width + width * 4 + 4
+        cfg = {
+            "net_arch": [width],
+            "activation": activation,
+            "_matched_to": ref,
+            "_match_target": match_to,
+            "_budget": budget,
+            "_hybrid_total": budgets["total"],
+            "_hybrid_quantum": budgets["quantum"],
+            "_spent_params": spent,
+        }
+        cfg.update(overrides)
+        return "classic", cfg
+
+    if arm not in ARMS:
+        raise KeyError(f"unknown arm {arm!r}. Known: {sorted(ARMS) + ['matched_classical']}")
+    agent_type, cfg = ARMS[arm]
+    cfg = dict(cfg)
+    cfg.update(overrides)
+    # No-op unless the arm carries a FrozenLake transform marker.
+    return agent_type, _resolve_transform(cfg)

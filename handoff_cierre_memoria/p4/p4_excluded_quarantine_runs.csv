@@ -1,0 +1,9 @@
+experiment,subpath,run_name,arm,agent_type,agent_type_inferred_from_run_name,class,seed,steps,wall_seconds,python,git_revision,env_id,tag,has_wall,recorded_path_kind,reuse_repetitions,quarantined,hours
+exp10_emulator_x100,_quarantine_dup_writers,sv_cartpole_L2_OR16__fix01on__s48__x100,sv_cartpole_L2_OR16,sv,False,emulator,48,100000,516.1,3.11.15,0524a76,CartPole-v1,x100,True,windows_path,16.0,True,0.1433611111111111
+exp10_emulator_x100,_quarantine_dup_writers,sv_cartpole_L2_OR32__fix01on__s47__x100,sv_cartpole_L2_OR32,sv,False,emulator,47,100000,525.9,3.11.15,0524a76,CartPole-v1,x100,True,windows_path,32.0,True,0.14608333333333332
+exp10_emulator_x100,_quarantine_dup_writers,sv_cartpole_L2_OR32__fix01on__s49__x100,sv_cartpole_L2_OR32,sv,False,emulator,49,100000,499.6,3.11.15,0524a76,CartPole-v1,x100,True,windows_path,32.0,True,0.13877777777777778
+exp10_emulator_x100,_quarantine_dup_writers,sv_cartpole_L2_OR4__fix01on__s11__x100,sv_cartpole_L2_OR4,sv,False,emulator,11,100000,638.9,3.11.15,0524a76,CartPole-v1,x100,True,windows_path,4.0,True,0.17747222222222223
+exp10_emulator_x100,_quarantine_dup_writers,sv_cartpole_L2_OR4__fix01on__s49__x100,sv_cartpole_L2_OR4,sv,False,emulator,49,100000,502.6,3.11.15,0524a76,CartPole-v1,x100,True,windows_path,4.0,True,0.13961111111111113
+exp10_emulator_x100,_quarantine_dup_writers,sv_cartpole_L2_OR8__fix01on__s48__x100,sv_cartpole_L2_OR8,sv,False,emulator,48,100000,527.1,3.11.15,0524a76,CartPole-v1,x100,True,windows_path,8.0,True,0.14641666666666667
+exp10_emulator_x100,_quarantine_dup_writers,sv_cartpole_L2_OR8__fix01on__s49__x100,sv_cartpole_L2_OR8,sv,False,emulator,49,100000,496.9,3.11.15,0524a76,CartPole-v1,x100,True,windows_path,8.0,True,0.13802777777777778
+exp10_emulator_x100,_quarantine_dup_writers,sv_cartpole_L2_OR8__fix01on__s55__x100,sv_cartpole_L2_OR8,sv,False,emulator,55,100000,523.0,3.11.15,0524a76,CartPole-v1,x100,True,windows_path,8.0,True,0.14527777777777778

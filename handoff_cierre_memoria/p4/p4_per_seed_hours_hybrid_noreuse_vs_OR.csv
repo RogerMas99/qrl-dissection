@@ -1,0 +1,51 @@
+arm_label,seed,hours,recorded_path_kind,python,git_revision,fast_cluster_lt7h
+hybrid_OR16,1,9.923,colab_path,,,False
+hybrid_OR16,2,10.042,colab_path,,,False
+hybrid_OR16,3,6.752,colab_path,,,True
+hybrid_OR16,4,9.564,colab_path,,,False
+hybrid_OR16,5,10.133,colab_path,,,False
+hybrid_OR16,6,11.121,colab_path,,,False
+hybrid_OR16,7,9.832,colab_path,,,False
+hybrid_OR16,8,9.835,colab_path,,,False
+hybrid_OR16,9,9.392,colab_path,,,False
+hybrid_OR16,10,9.386,colab_path,,,False
+hybrid_OR32,1,6.434,colab_path,,,True
+hybrid_OR32,2,7.18,colab_path,,,False
+hybrid_OR32,3,7.093,colab_path,,,False
+hybrid_OR32,4,6.088,colab_path,,,True
+hybrid_OR32,5,9.879,colab_path,,,False
+hybrid_OR32,6,9.018,colab_path,,,False
+hybrid_OR32,7,6.075,colab_path,,,True
+hybrid_OR32,8,10.641,colab_path,,,False
+hybrid_OR32,9,9.378,colab_path,,,False
+hybrid_OR32,10,9.171,colab_path,,,False
+hybrid_OR4,1,9.679,colab_path,,,False
+hybrid_OR4,2,6.394,colab_path,,,True
+hybrid_OR4,3,9.825,colab_path,,,False
+hybrid_OR4,4,9.698,colab_path,,,False
+hybrid_OR4,5,10.609,colab_path,,,False
+hybrid_OR4,6,10.234,colab_path,,,False
+hybrid_OR4,7,9.038,colab_path,,,False
+hybrid_OR4,8,9.561,colab_path,,,False
+hybrid_OR4,9,9.579,colab_path,,,False
+hybrid_OR4,10,6.207,colab_path,,,True
+hybrid_OR8,1,8.131,colab_path,,,False
+hybrid_OR8,2,9.878,colab_path,,,False
+hybrid_OR8,3,6.754,colab_path,,,True
+hybrid_OR8,4,9.55,colab_path,,,False
+hybrid_OR8,5,9.002,colab_path,,,False
+hybrid_OR8,6,8.749,colab_path,,,False
+hybrid_OR8,7,6.176,colab_path,,,True
+hybrid_OR8,8,9.548,colab_path,,,False
+hybrid_OR8,9,9.896,colab_path,,,False
+hybrid_OR8,10,10.825,colab_path,,,False
+hybrid_fig4 (no reuse),1,9.213,colab_path,3.12.13,87557c5,False
+hybrid_fig4 (no reuse),2,9.77,colab_path,3.12.13,87557c5,False
+hybrid_fig4 (no reuse),3,9.043,colab_path,3.12.13,87557c5,False
+hybrid_fig4 (no reuse),4,10.816,colab_path,3.12.13,87557c5,False
+hybrid_fig4 (no reuse),5,9.547,colab_path,3.12.13,87557c5,False
+hybrid_fig4 (no reuse),6,10.301,colab_path,3.12.13,87557c5,False
+hybrid_fig4 (no reuse),7,9.641,colab_path,3.12.13,87557c5,False
+hybrid_fig4 (no reuse),8,9.676,colab_path,3.12.13,87557c5,False
+hybrid_fig4 (no reuse),9,9.873,colab_path,3.12.13,87557c5,False
+hybrid_fig4 (no reuse),10,6.167,colab_path,3.12.13,87557c5,True

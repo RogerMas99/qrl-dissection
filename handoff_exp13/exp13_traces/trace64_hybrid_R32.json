@@ -1,0 +1,32 @@
+{
+ "hybrid_R32_s1": {
+  "first_diff_step": null,
+  "max_param_diff_to_first_diff": 2.6905338401661538e-08,
+  "max_param_diff_final": 1.9543784368636352e-08,
+  "n_steps": 100001,
+  "agent": "hybrid",
+  "R": 32,
+  "seed": 1,
+  "wall_s": 3230.0
+ },
+ "hybrid_R32_s2": {
+  "first_diff_step": null,
+  "max_param_diff_to_first_diff": 2.099001861211036e-08,
+  "max_param_diff_final": 1.6747621067736418e-08,
+  "n_steps": 100001,
+  "agent": "hybrid",
+  "R": 32,
+  "seed": 2,
+  "wall_s": 3556.5
+ },
+ "hybrid_R32_s3": {
+  "first_diff_step": null,
+  "max_param_diff_to_first_diff": 4.174450007887742e-08,
+  "max_param_diff_final": 4.094743921712052e-08,
+  "n_steps": 100001,
+  "agent": "hybrid",
+  "R": 32,
+  "seed": 3,
+  "wall_s": 3578.6
+ }
+}

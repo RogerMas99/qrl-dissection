@@ -1,0 +1,8 @@
+arm_label,n,mean_h,sd_h,min_h,max_h,n_below_7h
+hybrid_OR16,10.0,9.6,1.12,6.75,11.12,1.0
+hybrid_OR32,10.0,8.1,1.7,6.07,10.64,3.0
+hybrid_OR4,10.0,9.08,1.52,6.21,10.61,2.0
+hybrid_OR8,10.0,8.85,1.46,6.18,10.83,2.0
+hybrid_fig4 (no reuse),10.0,9.4,1.24,6.17,10.82,1.0
+Welch t-test no-reuse vs OR32 (p),0.0665844433325304,,,,,
+Mann-Whitney U (p),0.07566157214388704,,,,,

@@ -1,0 +1,170 @@
+{
+ "ceiling_dup": {
+  "block": "E",
+  "agent_type": "fourier_additive",
+  "params": 162,
+  "env": "CartPole-v1",
+  "efg_R": 2,
+  "collapse_R": 0,
+  "head_lr_mult": 1.0,
+  "dqn_kwargs": {
+   "batch_size": 128,
+   "buffer_size": 10000,
+   "train_frequency": 10
+  },
+  "simulated": false
+ },
+ "ceiling_unique": {
+  "block": "E",
+  "agent_type": "fourier_additive",
+  "params": 82,
+  "env": "CartPole-v1",
+  "efg_R": 1,
+  "collapse_R": 0,
+  "head_lr_mult": 1.0,
+  "dqn_kwargs": {
+   "batch_size": 128,
+   "buffer_size": 10000,
+   "train_frequency": 10
+  },
+  "simulated": false
+ },
+ "ceiling_unique_lrx2": {
+  "block": "E",
+  "agent_type": "fourier_additive",
+  "params": 82,
+  "env": "CartPole-v1",
+  "efg_R": 1,
+  "collapse_R": 0,
+  "head_lr_mult": 2.0,
+  "dqn_kwargs": {
+   "batch_size": 128,
+   "buffer_size": 10000,
+   "train_frequency": 10
+  },
+  "simulated": false
+ },
+ "ceiling_unique_lrx2_collapsed": {
+  "block": "E",
+  "agent_type": "fourier_additive",
+  "params": 162,
+  "env": "CartPole-v1",
+  "efg_R": 2,
+  "collapse_R": 2,
+  "head_lr_mult": 2.0,
+  "dqn_kwargs": {
+   "batch_size": 128,
+   "buffer_size": 10000,
+   "train_frequency": 10
+  },
+  "simulated": false
+ },
+ "matched_rep4_w7": {
+  "block": "F",
+  "agent_type": "classic",
+  "params": 135,
+  "env": "CartPole-v1",
+  "efg_R": 4,
+  "collapse_R": 0,
+  "head_lr_mult": 1.0,
+  "dqn_kwargs": {
+   "batch_size": 128,
+   "buffer_size": 10000,
+   "train_frequency": 10
+  },
+  "simulated": false
+ },
+ "matched_norep_w7_lrx4": {
+  "block": "F",
+  "agent_type": "classic",
+  "params": 51,
+  "env": "CartPole-v1",
+  "efg_R": 1,
+  "collapse_R": 0,
+  "head_lr_mult": 4.0,
+  "dqn_kwargs": {
+   "batch_size": 128,
+   "buffer_size": 10000,
+   "train_frequency": 10
+  },
+  "simulated": false
+ },
+ "matched_norep_w7_lrx4_collapsed": {
+  "block": "F",
+  "agent_type": "classic",
+  "params": 135,
+  "env": "CartPole-v1",
+  "efg_R": 4,
+  "collapse_R": 4,
+  "head_lr_mult": 4.0,
+  "dqn_kwargs": {
+   "batch_size": 128,
+   "buffer_size": 10000,
+   "train_frequency": 10
+  },
+  "simulated": false
+ },
+ "matched_norep_w18": {
+  "block": "F",
+  "agent_type": "classic",
+  "params": 128,
+  "env": "CartPole-v1",
+  "efg_R": 1,
+  "collapse_R": 0,
+  "head_lr_mult": 1.0,
+  "dqn_kwargs": {
+   "batch_size": 128,
+   "buffer_size": 10000,
+   "train_frequency": 10
+  },
+  "simulated": false
+ },
+ "matched_norep_w18_lrx4": {
+  "block": "F",
+  "agent_type": "classic",
+  "params": 128,
+  "env": "CartPole-v1",
+  "efg_R": 1,
+  "collapse_R": 0,
+  "head_lr_mult": 4.0,
+  "dqn_kwargs": {
+   "batch_size": 128,
+   "buffer_size": 10000,
+   "train_frequency": 10
+  },
+  "simulated": false
+ },
+ "mlp_bits_w6": {
+  "block": "G",
+  "agent_type": "bits_mlp",
+  "params": 58,
+  "env": "FrozenLake4x4Scalar-v0",
+  "efg_R": 1,
+  "collapse_R": 0,
+  "head_lr_mult": 1.0,
+  "dqn_kwargs": {
+   "batch_size": 128,
+   "buffer_size": 50000,
+   "train_frequency": 1,
+   "learning_starts": 1000
+  },
+  "simulated": false
+ },
+ "mlp_bits_w12": {
+  "block": "G",
+  "agent_type": "bits_mlp",
+  "params": 112,
+  "env": "FrozenLake4x4Scalar-v0",
+  "efg_R": 1,
+  "collapse_R": 0,
+  "head_lr_mult": 1.0,
+  "dqn_kwargs": {
+   "batch_size": 128,
+   "buffer_size": 50000,
+   "train_frequency": 1,
+   "learning_starts": 1000
+  },
+  "simulated": false
+ },
+ "_eval_episodes": 20
+}
