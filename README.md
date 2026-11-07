@@ -192,6 +192,17 @@ No experiment has had its 8-10 seed robustness pass yet (plan B in
 > Library for Hybrid Quantum Reinforcement Learning.* Springer, 2025.
 > doi:10.1007/978-3-032-08462-0_19
 
+## Third-party code and data
+
+- **`src/simplyqrl/`** is an unmodified copy of [SimplyQRL](https://github.com/javier-lazaro/SimplyQRL) at revision `b534cc9`
+  (Javier Lazaro Gonzalez, MIT licence, copyright 2025; the licence text is in `src/simplyqrl/LICENSE`, and
+  `tests/test_vendored_integrity.py` checks that no vendored module has been edited). Our adaptations are **not** in that
+  directory: they live in `qrl_dissection` and are applied at runtime (`core/compat.py`, `dqn/runner.py`, `dqn/safe.py`). See
+  `src/simplyqrl/VENDORED.md`.
+- **`data/`** holds curves and summaries of the PPO runs logged by the dissection paper's own repository
+  (`javier-lazaro/qrl-dissection`, MIT licence, copyright 2025 Javier Lazaro Gonzalez), reduced from its TensorBoard events by
+  `scripts/extract_paper_baselines.py` (see `docs/PAPER-BASELINES.md`). They are derived data: regenerate them, do not edit them.
+
 ## Simulated results
 
 Results produced by the SU(2) emulator or the statevector simulator (agent types `su2`, `sv`) are exploratory and are **not** to be used in the final work without the author's explicit approval: see [docs/SIMULATED-RESULTS-POLICY.md](docs/SIMULATED-RESULTS-POLICY.md).

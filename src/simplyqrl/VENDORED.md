@@ -10,8 +10,12 @@ Verify at any time:
 ```bash
 git clone https://github.com/javier-lazaro/SimplyQRL.git /tmp/sq
 git -C /tmp/sq checkout b534cc9
-diff -r src/simplyqrl /tmp/sq/src/simplyqrl   # exits 0, ignoring this file
+diff -r src/simplyqrl /tmp/sq/src/simplyqrl   # differs only in this file and in LICENSE (see below)
 ```
+
+**LICENSE.** `LICENSE` is the only file added to this directory: the MIT licence text of the upstream project
+(Copyright (c) 2025 Javier Lázaro González), kept here because the licence requires the notice to accompany copies.
+No `.py` file is touched (`tests/test_vendored_integrity.py`).
 
 ## Why vendored
 
