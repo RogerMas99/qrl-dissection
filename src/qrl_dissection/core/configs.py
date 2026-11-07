@@ -691,6 +691,55 @@ for _R in TWIN_REPEATS:
                                                 dict(hybrid_or_config(_R), twin_hidden=6, twin_bounded=False))
 
 
+# [exp13] Output Reuse against the learning rate of the head (docs/EXPERIMENT-13-OR-VS-LR.md; core/lr_equivalence.py).
+# Two agents: the classical twin of exp12 (T, "classical_twin_*") and the entangled hybrid on the batched statevector
+# emulator (H, "hybrid_emu_*", agent_type "sv": SIMULATED, see core/provenance.py). Per agent, exact ARMS keys:
+#   {P}_reuse_r{R}        R in {1,4,8,16,32}   the model with reuse R (R = 1 is the common base)
+#   {P}_collapsed_r{R}    R in {4,8,16,32}     reuse-R init, head replaced by V0 = sum_r W_r0, lr(head.weight) x R
+#   {P}_gradx{R}          R in {8,32}          R = 1, gradient of head.weight x R, lr untouched
+#   {P}_headlr_x{k}       k in {2,...,128}     R = 1 (default init), lr(head.weight) x k
+#   {P}_globallr_x{k}     k in {0.5,2,4,8}     R = 1, lr of ALL parameters x k   ("0.5" is written "0p5")
+def _exp13_base(prefix, R):
+    if prefix == "classical_twin":
+        return "classical_twin", dict(hybrid_or_config(R), twin_hidden=6, twin_bounded=True)
+    cfg = dict(HYBRID_FIG4, ent=True)
+    if R > 1:
+        cfg["reuse_repetitions"] = int(R)
+    return "sv", cfg
+
+
+def _exp13_register():
+    from .lr_equivalence import (KS_GLOBAL, KS_HEAD, PREFIX_HYBRID, PREFIX_TWIN, RS_COLLAPSED, RS_EQUIV, RS_GRAD, kname)
+    for pre in (PREFIX_TWIN, PREFIX_HYBRID):
+        for R in RS_EQUIV:
+            at, cfg = _exp13_base(pre, R)
+            ARMS[f"{pre}_reuse_r{R}"] = (at, dict(cfg, lr13_diag=True))
+        for R in RS_COLLAPSED:
+            at, cfg = _exp13_base(pre, R)
+            ARMS[f"{pre}_collapsed_r{R}"] = (at, dict(cfg, lr13_diag=True, lr13_collapse_R=R, lr13_head_mult=float(R)))
+        at, cfg1 = _exp13_base(pre, 1)
+        for R in RS_GRAD:
+            ARMS[f"{pre}_gradx{R}"] = (at, dict(cfg1, lr13_diag=True, lr13_grad_mult=float(R)))
+        for k in KS_HEAD:
+            ARMS[f"{pre}_headlr_x{kname(k)}"] = (at, dict(cfg1, lr13_diag=True, lr13_head_mult=float(k)))
+        for k in KS_GLOBAL:
+            ARMS[f"{pre}_globallr_x{kname(k)}"] = (at, dict(cfg1, lr13_diag=True, lr13_global_mult=float(k)))
+
+
+_exp13_register()
+
+
+def _exp13_efg_register():
+    """[exp13 blocks E, F, G] classical controls that contain Output Reuse, and their unreplicated twins
+    (core/lr_efg.py). Exact ARMS keys; none is simulated."""
+    from . import lr_efg
+    for name, entry in lr_efg.arm_definitions(HYBRID_FIG4, MATCHED_REUSE_INDICES_FAIR).items():
+        ARMS[name] = entry
+
+
+_exp13_efg_register()
+
+
 def build_arm_config(
     arm: str,
     hybrid_reference: str = "hybrid_fig4",

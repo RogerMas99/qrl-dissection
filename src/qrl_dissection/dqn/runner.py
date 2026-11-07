@@ -219,6 +219,7 @@ def run_arm(
         return {"run_name": spec.run_name, "claimed_elsewhere": True}
 
     agent_type, agent_config = build_arm_config(spec.arm, env_id=env_id)
+    from ..core.lr_equivalence import make_post_build    # [exp13]; None for every arm that has no lr13_* key
 
     runner = SafeDQN(
         agent_type=agent_type,
@@ -229,6 +230,7 @@ def run_arm(
         fix_autoreset=spec.fix_autoreset,
         eval_cfg=eval_cfg,
         outdir=outdir,
+        post_build=make_post_build(agent_config),
         **spec.dqn_kwargs,
     )
     outcome = runner.train(spec.total_timesteps, progress_bar=progress_bar)

@@ -218,8 +218,13 @@ class SafeDQN:
         fix_autoreset: bool = True,
         eval_cfg: Optional[GreedyEvalConfig] = None,
         outdir: Optional[pathlib.Path] = None,
+        post_build: Optional[Any] = None,
         **dqn_kwargs: Any,
     ):
+        # [exp13] post_build(dqn) -> hook | None. Called once, after DQN() is constructed and before train(); it may
+        # replace the optimiser or the networks (core/lr_equivalence.py) and returns an object with on_step(n) and
+        # write(path). None (the default) leaves the pipeline exactly as it was.
+        self.post_build = post_build
         self.agent_type = agent_type
         self.agent_config = agent_config
         self.run_name = run_name
@@ -264,6 +269,7 @@ class SafeDQN:
                 seed=self.seed,
                 **self.dqn_kwargs,
             )
+            diag = self.post_build(dqn) if self.post_build is not None else None
             probe = AutoresetProbe(dqn, skip_phantom=self.fix_autoreset)
 
             if self.eval_cfg.enabled:
@@ -276,6 +282,16 @@ class SafeDQN:
                     eval_rows.append((step_index, score))
 
                 probe.on_step = _hook
+
+            if diag is not None:
+                _prev_hook = probe.on_step
+
+                def _with_diag(step_index: int, _prev=_prev_hook, _d=diag) -> None:
+                    _d.on_step(step_index)
+                    if _prev is not None:
+                        _prev(step_index)
+
+                probe.on_step = _with_diag
 
             dqn.train(total_timesteps=total_timesteps, progress_bar=progress_bar)
 
@@ -324,5 +340,7 @@ class SafeDQN:
             # {}), so manifests written before this change keep parsing fine -
             # they simply have no "weights_path" key. See docs/CORRECTIONS.md
             # for the compatibility note.
-            extra={"weights_path": str(weights_path)},
+            extra=dict({"weights_path": str(weights_path)},
+                       **({"diag_csv": diag.write(self.outdir / "runs" / f"{self.run_name}_diag.csv")}
+                          if diag is not None else {})),
         )
