@@ -1,0 +1,21 @@
+{
+  "stored": {
+    "final": 9.582932692307692,
+    "greedy": 9.6,
+    "best_ma50": 23.66,
+    "final_ma50": 9.72
+  },
+  "rerun": {
+    "final": 9.579326923076923,
+    "greedy": 9.6,
+    "best_ma50": 22.46,
+    "final_ma50": 9.680000000000001
+  },
+  "episodes_identical": false,
+  "eval_identical": true,
+  "n_episodes": [
+    8316,
+    8321
+  ],
+  "final_greedy_equal": false
+}

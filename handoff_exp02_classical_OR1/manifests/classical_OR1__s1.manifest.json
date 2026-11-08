@@ -1,0 +1,46 @@
+{
+  "name": "classical_OR1__s1",
+  "agent_type": "classic",
+  "seed": 1,
+  "fix_autoreset": true,
+  "outcome": {
+    "run_name": "classical_OR1__s1",
+    "seed": 1,
+    "total_timesteps": 100000,
+    "wall_seconds": 20.8,
+    "probe": {
+      "fix01_active": true,
+      "steps": 100001,
+      "transitions_stored": 92058,
+      "phantoms_seen": 7943,
+      "phantoms_stored": 0,
+      "frac_poison": 0.07943
+    },
+    "episodes_csv": "C:\\Users\\rogem\\Mi unidad\\tfm_qrl\\results\\exp02_classical_OR1\\runs\\classical_OR1__s1.csv",
+    "eval_csv": "C:\\Users\\rogem\\Mi unidad\\tfm_qrl\\results\\exp02_classical_OR1\\runs\\classical_OR1__s1_eval.csv",
+    "trace_npy": "C:\\Users\\rogem\\Mi unidad\\tfm_qrl\\results\\exp02_classical_OR1\\classical_OR1__s1_trace.npy",
+    "extra": {
+      "weights_path": "C:\\Users\\rogem\\Mi unidad\\tfm_qrl\\results\\exp02_classical_OR1\\classical_OR1__s1_weights.pt"
+    }
+  },
+  "config": {
+    "n_repeats": "1",
+    "net_arch": "[]"
+  },
+  "total_timesteps": 100000,
+  "dqn_kwargs": {
+    "batch_size": 128,
+    "buffer_size": 10000,
+    "train_frequency": 10
+  },
+  "env_id": "CartPole-v1",
+  "obs_selection": {
+    "where": "environment (SelectObs)",
+    "indices": [
+      1,
+      2,
+      3
+    ]
+  },
+  "note": "Added arm outside the registered plan. The components [1, 2, 3] (x_dot, theta, theta_dot) are selected IN THE ENVIRONMENT (SelectObs wrapper, make_selected_env as in exp13 PPO), not by the agent: the vendored simplyqrl applies reuse_indices only when n_repeats > 1, so paper_classical_or_config(1) would give Linear(4->2). Agent: Linear(3->2), 8 parameters. Greedy evaluation uses the same selecting wrapper."
+}

@@ -152,13 +152,16 @@ class GreedyEvalConfig:
     env_id: str = "CartPole-v1"
     seed_offset: int = 10_000
     enabled: bool = True
+    # [classical_OR1] optional zero-argument factory for the evaluation environment (e.g. an observation-selecting
+    # wrapper). None (the default) keeps gym.make(env_id), i.e. the behaviour of every earlier experiment.
+    env_factory: Optional[Any] = None
 
 
 def evaluate_greedy(dqn: Any, cfg: GreedyEvalConfig, seed: int) -> float:
     """Mean return of the greedy policy over cfg.n_episodes fresh episodes."""
     import torch
 
-    env = gym.make(cfg.env_id)
+    env = cfg.env_factory() if cfg.env_factory is not None else gym.make(cfg.env_id)
     returns = []
     try:
         net = dqn.q_network
@@ -219,8 +222,12 @@ class SafeDQN:
         eval_cfg: Optional[GreedyEvalConfig] = None,
         outdir: Optional[pathlib.Path] = None,
         post_build: Optional[Any] = None,
+        env_factory: Optional[Any] = None,
         **dqn_kwargs: Any,
     ):
+        # [classical_OR1] zero-argument factory for the training environment (e.g. make_selected_env). None (the
+        # default) keeps gym.make(env_id) as before. upstream's make_vec_env accepts a callable.
+        self.env_factory = env_factory
         # [exp13] post_build(dqn) -> hook | None. Called once, after DQN() is constructed and before train(); it may
         # replace the optimiser or the networks (core/lr_equivalence.py) and returns an object with on_step(n) and
         # write(path). None (the default) leaves the pipeline exactly as it was.
@@ -262,7 +269,7 @@ class SafeDQN:
             # Colab disconnect.
             os.chdir(self.outdir)
             dqn = DQN(
-                env=gym.make(self.env_id),
+                env=self.env_factory if self.env_factory is not None else gym.make(self.env_id),
                 agent_type=self.agent_type,
                 agent_config=self.agent_config,
                 run_name=self.run_name,
